@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.astro/
+
+# Data processing artifacts (regenerated on build)
+# keep generated JSON committed optionally — we ignore to keep repo light
+# src/data/titles/
+# src/data/generated/
+
+# Logs
+*.log
+npm-debug.log*
+pids
+*.pid
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Netlify
+.netlify/
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Backup
+*.bak
+*.backup
+*.tar.gz
+*.zip
+
+# Reports can stay for inspection
+# reports/
+
+# Trim-data backup
+src/data/generated/all.full.json

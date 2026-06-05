@@ -1,0 +1,37 @@
+---
+import EpisodePage from '../../../../../../components/EpisodePage.astro';
+import { getSimilarTitles, getTitlesByCategory, toIndexEntry } from '../../../../../../lib/titles';
+import { getRouteSlug, hasEpisodePages, sortedSeasons } from '../../../../../../lib/episodeRoutes';
+
+export async function getStaticPaths() {
+  return getTitlesByCategory('series')
+    .filter(hasEpisodePages)
+    .flatMap((title) =>
+      sortedSeasons(title).flatMap((season) =>
+        season.episodes.map((episode) => ({
+          params: {
+            slug: getRouteSlug(title, 'series'),
+            season: String(season.season),
+            episode: String(episode.episode),
+          },
+          props: {
+            title,
+            seasonNumber: season.season,
+            episodeNumber: episode.episode,
+            similar: getSimilarTitles(title, 12).map(toIndexEntry),
+          },
+        }))
+      )
+    );
+}
+
+const { title, seasonNumber, episodeNumber, similar } = Astro.props;
+---
+
+<EpisodePage
+  title={title}
+  kind="series"
+  seasonNumber={seasonNumber}
+  episodeNumber={episodeNumber}
+  similar={similar}
+/>
