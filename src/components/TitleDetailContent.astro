@@ -13,7 +13,7 @@ import {
   getWorkTitle,
 } from '../lib/detailContent';
 import type { DetailKind } from '../lib/detailContent';
-import { getFirstEpisodeRoute } from '../lib/episodeRoutes';
+import { getFirstEpisodeWatchRoute } from '../lib/episodeRoutes';
 import { gatewayRoute } from '../lib/routes';
 import { SITE } from '../lib/site';
 
@@ -33,9 +33,10 @@ const infoRows = buildInfoRows(title, kind);
 const tags = getCategoryTags(title, kind);
 const categoryPath = kind === 'anime' ? 'anime' : kind === 'series' ? 'series' : 'movie';
 const firstEpisode = title.seasons[0]?.episodes[0] ?? null;
+const hasPlayableEpisode = (firstEpisode?.servers?.length || 0) > 0;
 const watchHref = kind === 'movie'
   ? gatewayRoute(title.slug)
-  : getFirstEpisodeRoute(title, categoryPath as 'series' | 'anime');
+  : getFirstEpisodeWatchRoute(title, categoryPath as 'series' | 'anime');
 const storyTitle = kind === 'movie' ? `قصة فيلم ${workTitle}` : kind === 'series' ? `قصة مسلسل ${workTitle}` : `قصة أنمي ${workTitle}`;
 const infoTitle = kind === 'movie' ? 'معلومات الفيلم' : kind === 'series' ? 'معلومات المسلسل' : 'معلومات الأنمي';
 const watchTitle = kind === 'movie' ? 'صفحة مشاهدة الفيلم' : kind === 'series' ? 'صفحة مشاهدة المسلسل' : 'صفحة مشاهدة الأنمي';
@@ -97,7 +98,7 @@ const posterAlt = `${workTitle} على ${SITE.name}`;
 
       {kind === 'anime' && <RelatedAnimeSeasons title={title} />}
 
-      {firstEpisode && (
+      {hasPlayableEpisode && (
         <section class="glass-panel p-5 md:p-6">
           <h2 class="mb-3 flex items-center gap-2 text-lg font-bold text-white">
             <span class="flex h-6 w-1 rounded-full bg-gradient-to-b from-brand-400 to-gold-400"></span>
@@ -146,7 +147,7 @@ const posterAlt = `${workTitle} على ${SITE.name}`;
               <span class="badge-hd">{title.quality || 'HD'}</span>
               {title.year && <span class="chip-surface">{title.year}</span>}
             </div>
-            {firstEpisode && (
+            {hasPlayableEpisode && (
               <a href={watchHref} class="btn-primary w-full justify-center px-5 py-3 text-sm">
                 مشاهدة العمل
               </a>

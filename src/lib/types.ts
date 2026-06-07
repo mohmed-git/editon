@@ -53,6 +53,14 @@ export interface Title {
   tmdb_id?: number | null;
   tmdb_url?: string | null;
   original_title?: string | null;
+  // TMDB-backed sort/credibility metadata (added by build-data.mjs)
+  tmdb_vote?: number;
+  tmdb_votes?: number;
+  release_date?: string;
+  sort_rating?: number;
+  sort_recent?: number;
+  real_plot?: boolean;
+  is_special?: boolean;
   relatedAnimeSeasons?: Array<{
     slug: string;
     title: string;
@@ -98,4 +106,9 @@ export interface TitleIndexEntry {
   has_multiple_seasons: boolean;
   year?: string | null;
   genres?: string[];
+  rating?: number;
+  votes?: number;
+  sort_rating?: number;
+  sort_recent?: number;
+  is_special?: boolean;
 }

@@ -1,5 +1,5 @@
 import type { Episode, Season, Title } from './types';
-import { detailRoute, seasonRoute, episodeRoute } from './routes';
+import { detailRoute, seasonRoute, episodeRoute, gatewayRoute } from './routes';
 
 export type EpisodicKind = 'series' | 'anime';
 
@@ -66,11 +66,37 @@ export function getEpisodeRouteForTitle(
   return episodeRoute(kind, getRouteSlug(title, kind), season, episode);
 }
 
+export function getGatewayEpisodeRouteForTitle(
+  title: Title,
+  season: number,
+  episode: number
+): string {
+  return `${gatewayRoute(title.slug)}?s=${season}&e=${episode}`;
+}
+
 export function getFirstEpisodeRoute(title: Title, kind: EpisodicKind): string {
   const firstSeason = sortedSeasons(title)[0];
   const firstEpisode = firstSeason?.episodes[0];
   if (!firstSeason || !firstEpisode) return getTitleRoute(title, kind);
   return getEpisodeRouteForTitle(title, kind, firstSeason.season, firstEpisode.episode);
+}
+
+export function getFirstEpisodeWatchRoute(title: Title, kind: EpisodicKind): string {
+  const firstSeason = sortedSeasons(title)[0];
+  const firstEpisode = firstSeason?.episodes[0];
+  if (!firstSeason || !firstEpisode) return getTitleRoute(title, kind);
+  return getGatewayEpisodeRouteForTitle(title, firstSeason.season, firstEpisode.episode);
+}
+
+export function getNavigableEpisodeRouteForTitle(
+  title: Title,
+  kind: EpisodicKind,
+  season: number,
+  episode: number
+): string {
+  return hasEpisodePages(title)
+    ? getEpisodeRouteForTitle(title, kind, season, episode)
+    : getGatewayEpisodeRouteForTitle(title, season, episode);
 }
 
 export function getFlatEpisodes(title: Title): EpisodeRef[] {

@@ -6,6 +6,8 @@
  * - Provides pagination utilities.
  */
 import type { Title } from './types';
+// Reuse the single normalisation source so listings and detail pages agree.
+import { splitGenres as normalizeGenres, orderAnimeGenres } from './detailContent';
 
 export const PAGE_SIZE = 36; // posters per page (3..6 cols ⇒ 6 rows)
 
@@ -13,53 +15,71 @@ export const PAGE_SIZE = 36; // posters per page (3..6 cols ⇒ 6 rows)
 
 // Canonical Arabic genres we promote in the UI (in display order)
 export const PRIMARY_GENRES = [
-  'اكشن',
-  'كوميدي',
+  'أكشن',
+  'كوميديا',
   'دراما',
   'رعب',
-  'اثارة',
+  'إثارة',
   'رومانسي',
   'جريمة',
   'غموض',
   'مغامرة',
   'خيال علمي',
   'فانتازيا',
-  'وثائقي',
   'تاريخي',
-  'سيرة ذاتية',
-  'كرتون',
   'عائلي',
+] as const;
+
+// Anime-only genre chips (cultural tags) surfaced on the anime listing.
+export const ANIME_GENRES = [
+  'أكشن',
+  'شونين',
+  'سينين',
+  'شوجو',
+  'إيسيكاي',
+  'مغامرة',
+  'كوميديا',
+  'دراما',
+  'رومانسي',
+  'خارق للطبيعة',
+  'فانتازيا',
+  'شريحة من الحياة',
+  'رياضي',
+  'مدرسي',
 ] as const;
 
 export type PrimaryGenre = (typeof PRIMARY_GENRES)[number];
 
-/** Split a raw `genre` string ("اكشن / دراما، كوميدي") into clean tokens */
+/** Split a raw `genre` string into clean, normalised tokens (shared logic). */
 export function splitGenres(raw: string | null | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(/[\/،,•·]+/)
-    .map((g) => g.trim())
-    .filter(Boolean);
+  return normalizeGenres(raw);
 }
+
+export { orderAnimeGenres };
 
 /** Slugify a genre name into a stable URL token (uses transliteration map for primary ones) */
 const GENRE_SLUG_MAP: Record<string, string> = {
-  اكشن: 'action',
-  كوميدي: 'comedy',
+  أكشن: 'action',
+  كوميديا: 'comedy',
   دراما: 'drama',
   رعب: 'horror',
-  اثارة: 'thriller',
+  إثارة: 'thriller',
   رومانسي: 'romance',
   جريمة: 'crime',
   غموض: 'mystery',
   مغامرة: 'adventure',
   'خيال علمي': 'sci-fi',
   فانتازيا: 'fantasy',
-  وثائقي: 'documentary',
   تاريخي: 'history',
-  'سيرة ذاتية': 'biography',
-  كرتون: 'animation',
   عائلي: 'family',
+  شونين: 'shounen',
+  سينين: 'seinen',
+  شوجو: 'shoujo',
+  إيسيكاي: 'isekai',
+  'خارق للطبيعة': 'supernatural',
+  'شريحة من الحياة': 'slice-of-life',
+  رياضي: 'sports',
+  مدرسي: 'school',
 };
 
 export function genreSlug(genre: string): string {

@@ -29,20 +29,66 @@ export const BRAND_NAME = 'سينما بلس';
 const GENRE_NORMALIZE: Record<string, string> = {
   اثاره: 'إثارة',
   اثارة: 'إثارة',
+  إثارة: 'إثارة',
+  تشويق: 'إثارة',
   أكشن: 'أكشن',
   اكشن: 'أكشن',
+  حركة: 'أكشن',
   رعب: 'رعب',
   دراما: 'دراما',
   جريمة: 'جريمة',
+  بوليسي: 'جريمة',
   كوميدي: 'كوميديا',
   كوميديا: 'كوميديا',
+  ساخر: 'كوميديا',
   كرتون: 'أنمي',
   انمي: 'أنمي',
   أنمي: 'أنمي',
+  'رسوم متحركة': 'أنمي',
   غموض: 'غموض',
   مغامرة: 'مغامرة',
+  مغامرات: 'مغامرة',
   عائلي: 'عائلي',
+  أطفال: 'عائلي',
   فانتازيا: 'فانتازيا',
+  خيال: 'فانتازيا',
+  سحر: 'فانتازيا',
+  رومانسي: 'رومانسي',
+  رومنسية: 'رومانسي',
+  'خيال علمي': 'خيال علمي',
+  فضاء: 'خيال علمي',
+  // anime cultural genres — kept intact, just normalized spelling
+  شونين: 'شونين',
+  سينين: 'سينين',
+  شوجو: 'شوجو',
+  جوسي: 'جوسي',
+  ايسيكاي: 'إيسيكاي',
+  إيسيكاي: 'إيسيكاي',
+  ايتشي: 'إيتشي',
+  حريم: 'حريم',
+  ميكا: 'ميكا',
+  'شريحة من الحياة': 'شريحة من الحياة',
+  'خارق للطبيعة': 'خارق للطبيعة',
+  'قوة خارقة': 'قوة خارقة',
+  'فنون قتالية': 'فنون قتالية',
+  ساموراي: 'ساموراي',
+  شياطين: 'شياطين',
+  'مصاصي دماء': 'مصاصي دماء',
+  رياضي: 'رياضي',
+  مدرسي: 'مدرسي',
+  نفسي: 'نفسي',
+  موسيقى: 'موسيقى',
+  موسيقي: 'موسيقى',
+  عسكري: 'عسكري',
+  تاريخي: 'تاريخي',
+  'حرب وسياسة': 'حرب',
+};
+
+// Compound TMDB tokens that must be split into two clean genres.
+const GENRE_SPLIT: Record<string, string[]> = {
+  'خيال علمي وفانتازيا': ['خيال علمي', 'فانتازيا'],
+  'حركة ومغامرة': ['أكشن', 'مغامرة'],
+  'حرب وسياسة': ['حرب', 'سياسة'],
 };
 
 const arabicComma = '،';
@@ -74,16 +120,39 @@ function pick<T>(items: T[], seed: number, offset = 0): T {
 
 export function splitGenres(value: string | null | undefined): string[] {
   const seen = new Set<string>();
-  return cleanBrand(value)
-    .split(/[\/،,•·]+/)
-    .map((genre) => GENRE_NORMALIZE[genre.trim()] || genre.trim())
-    .filter(Boolean)
-    .filter((genre) => {
-      const key = genre.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+  const tokens: string[] = [];
+  for (const raw of cleanBrand(value).split(/[\/،,•·]+/)) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    // Expand compound TMDB tokens first (e.g. "خيال علمي وفانتازيا").
+    const expanded = GENRE_SPLIT[trimmed] || [trimmed];
+    for (const part of expanded) tokens.push(GENRE_NORMALIZE[part.trim()] || part.trim());
+  }
+  return tokens.filter(Boolean).filter((genre) => {
+    const key = genre.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Anime-aware genre ordering: promotes the recognisable anime-culture tags
+ * (شونين/سينين/إيسيكاي…) to the front so the chips read like an anime page,
+ * not a generic movie page. Always ensures "أنمي" leads.
+ */
+const ANIME_CULTURE_ORDER = [
+  'أنمي', 'شونين', 'سينين', 'شوجو', 'جوسي', 'إيسيكاي', 'إيتشي', 'حريم',
+  'ميكا', 'شريحة من الحياة', 'خارق للطبيعة', 'قوة خارقة', 'فنون قتالية',
+  'ساموراي', 'شياطين', 'مصاصي دماء', 'سحر',
+];
+
+export function orderAnimeGenres(genres: string[]): string[] {
+  const set = new Set(genres);
+  set.add('أنمي');
+  const culture = ANIME_CULTURE_ORDER.filter((g) => set.has(g));
+  const rest = [...set].filter((g) => !ANIME_CULTURE_ORDER.includes(g));
+  return [...culture, ...rest];
 }
 
 export function splitPeople(value: string | null | undefined): string[] {
@@ -396,8 +465,8 @@ function typeName(kind: DetailKind): string {
 }
 
 function genreText(title: Title, kind: DetailKind): string {
-  const genres = splitGenres(title.genre);
-  if (kind === 'anime' && !genres.includes('أنمي')) genres.unshift('أنمي');
+  let genres = splitGenres(title.genre);
+  if (kind === 'anime') genres = orderAnimeGenres(genres);
   return genres.length ? genres.join(`${arabicComma} `) : kind === 'anime' ? 'أنمي' : 'دراما';
 }
 
@@ -438,8 +507,8 @@ function countryTag(country: string | null | undefined): string | null {
 }
 
 export function getCategoryTags(title: Title, kind: DetailKind): string[] {
-  const tags = splitGenres(title.genre);
-  if (kind === 'anime' && !tags.includes('أنمي')) tags.unshift('أنمي');
+  let tags = splitGenres(title.genre);
+  if (kind === 'anime') tags = orderAnimeGenres(tags);
   if (title.year) {
     const prefix = kind === 'movie' ? 'أفلام' : kind === 'series' ? 'مسلسلات' : 'أنمي';
     tags.push(`${prefix} ${title.year}`);
@@ -729,14 +798,29 @@ export function buildMainDescription(title: Title, kind: DetailKind, patternId?:
   if (title.seoContent?.mainDescription) return cleanBrand(title.seoContent.mainDescription);
   const name = getWorkTitle(title);
   const label = typeLabel(kind);
-  const story = truncateWords(sourceStory(title), 38);
   const profile = genreProfile(title, kind);
-  const pattern = getDetailPattern(title, kind, patternId);
   const people = splitPeople(title.stars).slice(0, 3).join(`${arabicComma} `);
-  const release = kind === 'movie'
-    ? `${title.duration ? `مدة ${cleanBrand(title.duration)}` : 'مدة مناسبة للمشاهدة'}${title.quality ? ` وبجودة ${cleanBrand(title.quality)}` : ''}`
-    : `${title.seasons_count} موسم و${title.episodes_count} حلقة${title.quality ? ` بجودة ${cleanBrand(title.quality)}` : ''}`;
-  return `${label} ${name} يقدم تجربة تقوم على ${profile.focus} أكثر من اعتمادها على العنوان وحده. في هذا النمط التحريري نقرأ العمل من زاوية ${pattern.title}، لذلك لا تأتي الفقرة كملخص عابر بل كمقدمة تساعدك على فهم النبرة قبل المشاهدة. تنطلق القصة من ${story || 'فكرة درامية تتدرج مع الشخصيات'}، ثم تترك للأجواء أن تكشف طبقات العمل بهدوء. ${people ? `وجود ${people} يمنح الأحداث حضورا أوضح ويجعل الصراع أكثر قربا من المشاهد. ` : ''}العمل متوفر ضمن بيانات ${BRAND_NAME} مع ${release}، لذلك يمكن تكوين فكرة دقيقة عن الإيقاع وطبيعة المحتوى قبل الضغط على زر المشاهدة.`;
+  const genres = genreText(title, kind);
+  const year = title.year ? ` عام ${title.year}` : '';
+
+  // When we have the real plot, the plot itself is the primary paragraph.
+  if (title.real_plot) {
+    const plot = normalizeWhitespace(sourceStory(title));
+    if (plot && plot.length >= 40) {
+      const meta = kind === 'movie'
+        ? `${label} ${genres}${title.country ? ` من إنتاج ${countryTag(title.country)}` : ''}${year}`
+        : `${label} ${genres}${year}، بعدد ${title.seasons_count} موسم و${title.episodes_count} حلقة`;
+      const castLine = people ? ` بطولة ${people}.` : '';
+      return `${plot} ${meta}.${castLine}`.replace(/\s+/g, ' ').trim();
+    }
+  }
+
+  // Fallback (no real plot): lighter generated framing, no brand-data boilerplate.
+  const story = truncateWords(sourceStory(title), 38);
+  const opener = story
+    ? `تدور أحداث ${label} ${name}${year} حول ${story}.`
+    : `${label} ${name}${year} ضمن أجواء ${genres}.`;
+  return `${opener} ${profile.atmosphere}. ${people ? `يشارك في العمل ${people}، ` : ''}والإيقاع فيه ${profile.pace}، ما يجعله مناسبا لـ${profile.audience}.`.replace(/\s+/g, ' ').trim();
 }
 
 export function buildSeoHighlights(title: Title): string | null {
@@ -762,27 +846,51 @@ export function buildTeamNote(title: Title, kind: DetailKind): string {
 export function buildLongRead(title: Title, kind: DetailKind): string[] {
   const name = getWorkTitle(title);
   const label = typeLabel(kind);
-  const story = truncateWords(sourceStory(title), 42);
   const profile = genreProfile(title, kind);
   const people = splitPeople(title.stars);
   const cast = people.slice(0, 4).join(`${arabicComma} `);
   const director = title.director ? cleanBrand(title.director) : null;
   const seed = seedFrom(title.slug);
-  const firstOpenings = [
-    `يبدأ ${label} ${name} من فكرة تبدو مباشرة: ${story}. لكن قوته لا تأتي من الحدث وحده، بل من الطريقة التي يسمح بها للقلق أو الفضول أن يتسرب بين المشاهد.`,
-    `في ${name} تتحرك القصة أبعد من ملخص قصير عن ${story}. قوة العمل تظهر في طريقته الخاصة في تحويل التفاصيل الصغيرة إلى إشارات تكشف حجم الصراع.`,
-    `فكرة ${label} ${name} تتحرك حول ${story}. ومن هذه النقطة يبني العمل مساحة مشاهدة تعتمد على ${profile.focus} وعلى إحساس واضح بطبيعة التصنيف.`,
-  ];
-  return [
-    `${pick(firstOpenings, seed)} الأجواء هنا ${profile.atmosphere}، ولذلك لا يظهر التصنيف كوسم تسويقي فقط، بل كطريقة في توزيع المشاهد وتصميم الانتقال بينها.`,
+
+  const paragraphs: string[] = [];
+
+  // Lead paragraph: the real plot verbatim when available, otherwise a generated opener.
+  if (title.real_plot) {
+    const plot = normalizeWhitespace(sourceStory(title));
+    if (plot && plot.length >= 40) {
+      paragraphs.push(plot);
+    }
+  }
+  if (paragraphs.length === 0) {
+    const story = truncateWords(sourceStory(title), 42);
+    const firstOpenings = [
+      `يبدأ ${label} ${name} من فكرة تبدو مباشرة: ${story}. لكن قوته لا تأتي من الحدث وحده، بل من الطريقة التي يسمح بها للقلق أو الفضول أن يتسرب بين المشاهد.`,
+      `في ${name} تتحرك القصة أبعد من ملخص قصير عن ${story}. قوة العمل تظهر في طريقته الخاصة في تحويل التفاصيل الصغيرة إلى إشارات تكشف حجم الصراع.`,
+      `فكرة ${label} ${name} تتحرك حول ${story}. ومن هذه النقطة يبني العمل مساحة مشاهدة تعتمد على ${profile.focus} وعلى إحساس واضح بطبيعة التصنيف.`,
+    ];
+    paragraphs.push(`${pick(firstOpenings, seed)} الأجواء هنا ${profile.atmosphere}.`);
+  }
+
+  // Character / cast paragraph.
+  paragraphs.push(
     cast
-      ? `على مستوى الشخصيات، يمنح حضور ${cast} العمل قدرة على تغيير النبرة بين مشهد وآخر. الأداء أو بناء الشخصيات لا يعمل بمعزل عن القصة؛ فكل تردد أو قرار يضيف طبقة جديدة لفهم الصراع. لهذا تبدو المتابعة أفضل عندما ينتبه المشاهد للتفاصيل الصغيرة في الحوار، لا للأحداث الكبيرة فقط.`
-      : `على مستوى الشخصيات، يعتمد العمل على ردود الفعل والاختيارات أكثر من الأسماء الكبيرة. الشخصيات تتحرك داخل ضغط واضح، ومع كل قرار يتغير معنى المشهد السابق. هذا النوع من البناء يجعل المتابعة مرتبطة بما يحدث داخل الشخصية بقدر ارتباطها بما يحدث حولها.`,
+      ? `على مستوى الشخصيات، يمنح حضور ${cast} العمل قدرة على تغيير النبرة بين مشهد وآخر. كل تردد أو قرار يضيف طبقة جديدة لفهم الصراع، لذلك تبدو المتابعة أفضل عند الانتباه للتفاصيل الصغيرة في الحوار لا للأحداث الكبيرة فقط.`
+      : `على مستوى الشخصيات، يعتمد العمل على ردود الفعل والاختيارات أكثر من الأسماء الكبيرة. الشخصيات تتحرك داخل ضغط واضح، ومع كل قرار يتغير معنى المشهد السابق.`
+  );
+
+  // Craft / direction paragraph.
+  paragraphs.push(
     director
-      ? `إخراجيا، يترك ${director} بصمة في إدارة الإيقاع وتوزيع المعلومات. ${profile.craft}. لذلك لا يمنحك العمل كل شيء دفعة واحدة، بل يدفعك إلى مراقبة الصورة والصوت وتبدل المواقف قبل الوصول إلى الخلاصة.`
-      : `من ناحية السرد، لا يتعامل العمل مع المشاهد كحشو بين نقاط القصة. ${profile.craft}. ولهذا تظهر قيمة الإيقاع في طريقة ترتيب الحلقات أو المشاهد، وفي مقدار ما يقال وما يترك للمشاهدة اللاحقة.`,
-    `ما يجعل ${name} مناسبا للمشاهدة هو أنه يخاطب ${profile.audience}. قد لا يكون العمل للجميع بنفس الدرجة، لكنه يمنح جمهوره ما يبحث عنه: نبرة واضحة، تفاصيل كافية، وتجربة أفضل عند تشغيله بجودة عالية مع ترجمة دقيقة على ${BRAND_NAME}.`,
-  ];
+      ? `إخراجيا، يترك ${director} بصمة في إدارة الإيقاع وتوزيع المعلومات. ${profile.craft}.`
+      : `من ناحية السرد، لا يتعامل العمل مع المشاهد كحشو بين نقاط القصة. ${profile.craft}.`
+  );
+
+  // Audience paragraph (no brand boilerplate).
+  paragraphs.push(
+    `يخاطب العمل ${profile.audience}، ويمنح جمهوره نبرة واضحة وتفاصيل كافية، خصوصا عند مشاهدته بجودة عالية مع ترجمة دقيقة.`
+  );
+
+  return paragraphs;
 }
 
 export function buildBeforeWatching(title: Title, kind: DetailKind): string[] {

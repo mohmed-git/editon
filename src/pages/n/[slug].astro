@@ -5,7 +5,7 @@ import TitleDetailContent from '../../components/TitleDetailContent.astro';
 import { getTitlesByCategory, getSimilarTitles, toIndexEntry } from '../../lib/titles';
 import { SITE } from '../../lib/site';
 import type { Title } from '../../lib/types';
-import { getFirstEpisodeRoute, getRouteSlug } from '../../lib/episodeRoutes';
+import { getFirstEpisodeWatchRoute, getRouteSlug } from '../../lib/episodeRoutes';
 import { listingRoute } from '../../lib/routes';
 import {
   buildJsonLdDescription,
@@ -55,7 +55,8 @@ export async function getStaticPaths() {
 const { title, patternId } = Astro.props as { title: Title; patternId: number };
 const detailKind = 'anime' as const;
 const firstEp = title.seasons[0]?.episodes[0] ?? null;
-const firstEpisodeHref = getFirstEpisodeRoute(title, detailKind);
+const canWatch = (firstEp?.servers?.length || 0) > 0;
+const firstEpisodeHref = getFirstEpisodeWatchRoute(title, detailKind);
 const similar = getSimilarTitles(title, 12).map(toIndexEntry);
 const genres = ['أنمي', ...splitGenres(title.genre).filter((genre) => genre !== 'أنمي')];
 const displayTitle = getDisplayTitle(title);
@@ -128,7 +129,7 @@ const jsonLd = {
 
           {genres.length > 0 && <div class="flex flex-wrap gap-2">{genres.map((genre) => <span class="inline-flex items-center rounded-full border border-white/[0.06] bg-white/[0.04] px-3 py-1 text-xs text-gray-300">{genre}</span>)}</div>}
 
-          {firstEp && (
+          {canWatch && (
             <div class="flex flex-wrap gap-3 pt-1">
               <a href={firstEpisodeHref} class="btn-primary px-7 py-3.5 text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5"><path d="M8 5v14l11-7z" /></svg>

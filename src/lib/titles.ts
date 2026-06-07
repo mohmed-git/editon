@@ -74,6 +74,11 @@ export function toIndexEntry(t: Title): TitleIndexEntry {
     has_multiple_seasons: t.seasons_count > 1,
     year: t.year || null,
     genres,
+    rating: t.tmdb_vote ?? (Number(t.rating) || 0),
+    votes: t.tmdb_votes ?? 0,
+    sort_rating: t.sort_rating ?? 0,
+    sort_recent: t.sort_recent ?? 0,
+    is_special: !!t.is_special,
   };
 }
 
@@ -85,6 +90,69 @@ export function sortByAlpha(titles: Title[]): Title[] {
 
 export function sortByEpisodes(titles: Title[]): Title[] {
   return [...titles].sort((a, b) => b.episodes_count - a.episodes_count);
+}
+
+/* ─────────────────  SORTING (TMDB-backed)  ───────────────── */
+
+export type SortMode = 'featured' | 'latest' | 'top' | 'alpha';
+
+const num = (v: unknown) => (typeof v === 'number' ? v : Number(v) || 0);
+
+/** Special/OVA anime entries are always pushed to the very end. */
+function specialPenalty(t: Title): number {
+  return (t as { is_special?: boolean }).is_special ? 1 : 0;
+}
+
+/** Most recent first, by exact release/air date (falls back to year). */
+export function sortByLatest(titles: Title[]): Title[] {
+  return [...titles].sort((a, b) => {
+    const sp = specialPenalty(a) - specialPenalty(b);
+    if (sp !== 0) return sp;
+    return num((b as any).sort_recent) - num((a as any).sort_recent);
+  });
+}
+
+/** Highest credible (Bayesian) TMDB rating first. */
+export function sortByTopRated(titles: Title[]): Title[] {
+  return [...titles].sort((a, b) => {
+    const sp = specialPenalty(a) - specialPenalty(b);
+    if (sp !== 0) return sp;
+    const r = num((b as any).sort_rating) - num((a as any).sort_rating);
+    if (r !== 0) return r;
+    return num((b as any).tmdb_votes) - num((a as any).tmdb_votes);
+  });
+}
+
+/**
+ * Default "featured" order: a balanced blend of credibility and freshness that
+ * keeps specials/OVA out of the top. Deterministic (no Math.random) for SSG.
+ */
+export function sortFeatured(titles: Title[]): Title[] {
+  const now = Date.now();
+  const yearMs = 365.25 * 24 * 3600 * 1000;
+  return [...titles].sort((a, b) => {
+    const sp = specialPenalty(a) - specialPenalty(b);
+    if (sp !== 0) return sp;
+    const score = (t: Title) => {
+      const rating = num((t as any).sort_rating); // 0..10
+      const ageYears = Math.max(0, (now - num((t as any).sort_recent)) / yearMs);
+      const recency = Math.max(0, 6 - Math.min(ageYears, 12) * 0.5); // newer ⇒ higher
+      return rating * 1.0 + recency * 0.6;
+    };
+    const s = score(b) - score(a);
+    if (s !== 0) return s;
+    return a.clean_title.localeCompare(b.clean_title, 'ar');
+  });
+}
+
+export function sortTitles(titles: Title[], mode: SortMode): Title[] {
+  switch (mode) {
+    case 'latest': return sortByLatest(titles);
+    case 'top': return sortByTopRated(titles);
+    case 'alpha': return sortByAlpha(titles);
+    case 'featured':
+    default: return sortFeatured(titles);
+  }
 }
 
 /** Similar works: prefer overlapping genres, then keep a deterministic order. */

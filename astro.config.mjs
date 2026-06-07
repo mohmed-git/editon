@@ -7,6 +7,7 @@ import sitemap from '@astrojs/sitemap';
 export const SITE_NAME = 'CinemaPlus';
 export const SITE_URL = 'https://cinemaplus.site';
 
+/** @param {string} page */
 function shouldIncludeInSitemap(page) {
   const pathname = page.startsWith('http') ? new URL(page).pathname : page;
   const normalized = pathname.replace(/\/$/, '');

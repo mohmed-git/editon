@@ -1,6 +1,6 @@
 ---
 import type { Title } from '../lib/types';
-import { getEpisodeRouteForTitle } from '../lib/episodeRoutes';
+import { getNavigableEpisodeRouteForTitle } from '../lib/episodeRoutes';
 import { gatewayRoute } from '../lib/routes';
 
 interface Props {
@@ -40,7 +40,7 @@ const initial = seasons[0]?.season ?? 1;
         {s.episodes.map((ep) => (
           <li>
             <a
-              href={categoryPath === 'movie' ? `${gatewayRoute(title.slug)}?s=${s.season}&e=${ep.episode}` : getEpisodeRouteForTitle(title, categoryPath, s.season, ep.episode)}
+              href={categoryPath === 'movie' ? `${gatewayRoute(title.slug)}?s=${s.season}&e=${ep.episode}` : getNavigableEpisodeRouteForTitle(title, categoryPath, s.season, ep.episode)}
               class="group relative flex items-center gap-3 rounded-xl bg-white/[0.03] border border-white/[0.05] px-3 py-2.5 text-sm text-gray-200 transition-all duration-300 hover:bg-gradient-to-l hover:from-brand-600/20 hover:to-neon-fuchsia/10 hover:border-brand-500/40 hover:text-white hover:shadow-[0_0_20px_-6px_rgba(168,85,247,0.5)]"
             >
               <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600/30 to-neon-fuchsia/20 text-brand-300 group-hover:from-brand-500 group-hover:to-neon-fuchsia group-hover:text-white transition-all">

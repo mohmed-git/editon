@@ -3,13 +3,13 @@ import Base from '../../../layouts/Base.astro';
 import Breadcrumbs from '../../../components/Breadcrumbs.astro';
 import PosterCard from '../../../components/PosterCard.astro';
 import Pagination from '../../../components/Pagination.astro';
-import { getTitlesByCategory, toIndexEntry } from '../../../lib/titles';
+import { getTitlesByCategory, toIndexEntry, sortFeatured } from '../../../lib/titles';
 import { PAGE_SIZE, PRIMARY_GENRES, buildYearBuckets, buildGenreCounts, genreSlug } from '../../../lib/filters';
 import { listingRoute, listingPageRoute } from '../../../lib/routes';
 import { SITE } from '../../../lib/site';
 
 export async function getStaticPaths() {
-  const items = getTitlesByCategory('series').map(toIndexEntry);
+  const items = getTitlesByCategory('series');
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const paths: any[] = [{ params: { page: undefined }, props: { current: 1 } }];
   for (let p = 1; p <= totalPages; p++) {
@@ -21,7 +21,8 @@ export async function getStaticPaths() {
 const { current } = Astro.props as { current: number };
 
 const all = getTitlesByCategory('series');
-const items = all.map(toIndexEntry);
+// Default "featured" order keeps low-credibility/special items out of the top.
+const items = sortFeatured(all).map(toIndexEntry);
 const yearBuckets = buildYearBuckets(all);
 const genreCounts = buildGenreCounts(all);
 
@@ -69,6 +70,7 @@ function pageHref(p: number): string {
           <p class="mt-3 max-w-2xl text-sm md:text-base text-gray-300/90 leading-relaxed">
             تابع {items.length.toLocaleString('ar-EG')} مسلسلًا مترجمًا بمواسم وحلقات كاملة،
             مرتّبة في {totalPages} صفحات.
+          </p>
         </div>
 
         <!-- Stats card -->
@@ -132,6 +134,17 @@ function pageHref(p: number): string {
           ))}
         </div>
       </div>
+
+      <!-- Sort -->
+      <div>
+        <p class="text-[11px] font-semibold text-gray-400 mb-2 tracking-wider">الترتيب</p>
+        <div class="flex flex-wrap gap-2" data-filter-group="sort">
+          <button type="button" class="filter-chip filter-chip--active" data-value="featured">مختارة</button>
+          <button type="button" class="filter-chip" data-value="latest">الأحدث</button>
+          <button type="button" class="filter-chip" data-value="top">الأعلى تقييماً</button>
+          <button type="button" class="filter-chip" data-value="alpha">أبجدي</button>
+        </div>
+      </div>
     </div>
 
     <!-- Results: server-rendered slice (current page) -->
@@ -180,9 +193,15 @@ function pageHref(p: number): string {
     has_multiple_seasons: boolean;
     year?: string | null;
     genres?: string[];
+    sort_rating?: number;
+    sort_recent?: number;
+    is_special?: boolean;
+    rating?: number;
+    votes?: number;
   };
 
   const PAGE_SIZE = 36;
+  const SPECIAL_PENALTY = 1e12;
 
   const itemsData: Entry[] = JSON.parse(document.getElementById('all-items-data')!.textContent || '[]');
 
@@ -196,12 +215,17 @@ function pageHref(p: number): string {
 
   let activeGenre = '';
   let activeYear = '';
+  let activeSort = 'featured';
   let filterPage = 1;
+
+  const SORT_VALUES = ['featured', 'latest', 'top', 'alpha'];
 
   // Read URL params on load (so filters survive navigation)
   const url = new URL(window.location.href);
   activeGenre = url.searchParams.get('genre') || '';
   activeYear = url.searchParams.get('year') || '';
+  activeSort = url.searchParams.get('sort') || 'featured';
+  if (!SORT_VALUES.includes(activeSort)) activeSort = 'featured';
   filterPage = Number(url.searchParams.get('p') || '1') || 1;
 
   function qualityFor(slug: string): string {
@@ -225,8 +249,34 @@ function pageHref(p: number): string {
     return String(e.year) === key;
   }
 
+  function sortEntries(list: Entry[]): Entry[] {
+    if (activeSort === 'featured') return list; // already in server featured order
+    const arr = list.slice();
+    if (activeSort === 'alpha') {
+      arr.sort((a, b) => {
+        const sa = a.is_special ? 1 : 0;
+        const sb = b.is_special ? 1 : 0;
+        if (sa !== sb) return sa - sb;
+        return (a.clean_title || '').localeCompare(b.clean_title || '', 'ar');
+      });
+      return arr;
+    }
+    const key = activeSort === 'latest' ? 'sort_recent' : 'sort_rating';
+    arr.sort((a, b) => {
+      const pa = (a.is_special ? -SPECIAL_PENALTY : 0) + (Number((a as any)[key]) || 0);
+      const pb = (b.is_special ? -SPECIAL_PENALTY : 0) + (Number((b as any)[key]) || 0);
+      if (pb !== pa) return pb - pa;
+      const va = Number(a.votes) || 0;
+      const vb = Number(b.votes) || 0;
+      if (vb !== va) return vb - va;
+      return (a.clean_title || '').localeCompare(b.clean_title || '', 'ar');
+    });
+    return arr;
+  }
+
   function applyFilters(): Entry[] {
-    return itemsData.filter((e) => entryHasGenre(e, activeGenre) && entryMatchesYear(e, activeYear));
+    const filtered = itemsData.filter((e) => entryHasGenre(e, activeGenre) && entryMatchesYear(e, activeYear));
+    return sortEntries(filtered);
   }
 
   function renderCard(e: Entry): string {
@@ -295,6 +345,7 @@ function pageHref(p: number): string {
     const params = new URLSearchParams();
     if (activeGenre) params.set('genre', activeGenre);
     if (activeYear) params.set('year', activeYear);
+    if (activeSort && activeSort !== 'featured') params.set('sort', activeSort);
     if (filterPage > 1) params.set('p', String(filterPage));
     const qs = params.toString();
     const newUrl = window.location.pathname + (qs ? '?' + qs : '');
@@ -303,7 +354,7 @@ function pageHref(p: number): string {
 
   function rerender() {
     const filtered = applyFilters();
-    const hasFilter = !!activeGenre || !!activeYear;
+    const hasFilter = !!activeGenre || !!activeYear || activeSort !== 'featured';
     resultCount.textContent = filtered.length.toLocaleString('ar-EG');
     clearBtn.classList.toggle('hidden', !hasFilter);
 
@@ -355,6 +406,7 @@ function pageHref(p: number): string {
   function setActive(group: string, value: string) {
     if (group === 'genre') activeGenre = value;
     if (group === 'year') activeYear = value;
+    if (group === 'sort') activeSort = value || 'featured';
     filterPage = 1;
     // Update visual state
     filterBar.querySelectorAll<HTMLButtonElement>(`[data-filter-group="${group}"] button`).forEach((b) => {
@@ -376,9 +428,13 @@ function pageHref(p: number): string {
   clearBtn.addEventListener('click', () => {
     activeGenre = '';
     activeYear = '';
+    activeSort = 'featured';
     filterPage = 1;
-    filterBar.querySelectorAll<HTMLButtonElement>('[data-filter-group] button').forEach((b) => {
+    filterBar.querySelectorAll<HTMLButtonElement>('[data-filter-group="genre"] button, [data-filter-group="year"] button').forEach((b) => {
       b.classList.toggle('filter-chip--active', (b.dataset.value || '') === '');
+    });
+    filterBar.querySelectorAll<HTMLButtonElement>('[data-filter-group="sort"] button').forEach((b) => {
+      b.classList.toggle('filter-chip--active', (b.dataset.value || '') === 'featured');
     });
     rerender();
   });
@@ -400,6 +456,9 @@ function pageHref(p: number): string {
       activeYear = '';
     }
   }
-  if (activeGenre || activeYear) rerender();
+  if (activeSort && activeSort !== 'featured') {
+    filterBar.querySelectorAll<HTMLButtonElement>('[data-filter-group="sort"] button').forEach((b) => b.classList.toggle('filter-chip--active', (b.dataset.value || '') === activeSort));
+  }
+  if (activeGenre || activeYear || activeSort !== 'featured') rerender();
 </script>
 

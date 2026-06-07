@@ -43,3 +43,5 @@ Thumbs.db
 
 # Trim-data backup
 src/data/generated/all.full.json
+.dev.vars
+scripts/.cache/

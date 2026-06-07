@@ -9,7 +9,7 @@ import type { Title, TitleIndexEntry } from '../lib/types';
 import type { EpisodicKind } from '../lib/episodeRoutes';
 import {
   findEpisode,
-  getEpisodeRouteForTitle,
+  getGatewayEpisodeRouteForTitle,
   getSeasonRouteForTitle,
   getTitleRoute,
 } from '../lib/episodeRoutes';
@@ -34,6 +34,7 @@ const titleRoute = getTitleRoute(title, kind);
 const { season } = findEpisode(title, seasonNumber, 1);
 const currentSeason = season?.season ?? seasonNumber;
 const firstEpisode = season?.episodes[0] ?? null;
+const canWatchFirstEpisode = (firstEpisode?.servers?.length || 0) > 0;
 const pageHeading = `${typeLabel} ${workTitle} الموسم ${currentSeason}`;
 const pageTitle = `${pageHeading} مترجم اون لاين — ${SITE.name}`;
 const description = `تابع ${typeLabel} ${workTitle} الموسم ${currentSeason} مترجم مع قائمة الحلقات كاملة وروابط المشاهدة بجودة عالية على ${SITE.name}.`;
@@ -110,9 +111,9 @@ const jsonLd = {
             </div>
           )}
           <p class="mt-5 max-w-3xl text-sm leading-8 text-gray-300 md:text-base">{story}</p>
-          {firstEpisode && (
+          {canWatchFirstEpisode && (
             <a
-              href={getEpisodeRouteForTitle(title, kind, currentSeason, firstEpisode.episode)}
+              href={getGatewayEpisodeRouteForTitle(title, currentSeason, firstEpisode.episode)}
               class="btn-primary mt-6 w-full justify-center px-7 py-3.5 text-base sm:w-auto"
             >
               مشاهدة أول حلقة

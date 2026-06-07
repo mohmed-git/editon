@@ -52,6 +52,7 @@ export async function getStaticPaths() {
 const { title, patternId } = Astro.props as { title: Title; patternId: number };
 const detailKind = 'movie' as const;
 const primaryEpisode = title.seasons[0]?.episodes[0] ?? null;
+const canWatch = (primaryEpisode?.servers?.length || 0) > 0;
 const similar = getSimilarTitles(title, 12).map(toIndexEntry);
 const genres = splitGenres(title.genre);
 const displayTitle = getDisplayTitle(title);
@@ -132,7 +133,7 @@ const jsonLd = {
             </div>
           )}
 
-          {primaryEpisode && (
+          {canWatch && (
             <div class="flex flex-wrap gap-3 pt-1">
               <a href={gatewayRoute(title.slug)} class="btn-primary px-7 py-3.5 text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5"><path d="M8 5v14l11-7z" /></svg>

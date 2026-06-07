@@ -1,7 +1,7 @@
 ---
 import type { Title } from '../lib/types';
 import type { EpisodicKind } from '../lib/episodeRoutes';
-import { getEpisodeRouteForTitle, getSeasonRouteForTitle, sortedSeasons } from '../lib/episodeRoutes';
+import { getNavigableEpisodeRouteForTitle, getSeasonRouteForTitle, sortedSeasons } from '../lib/episodeRoutes';
 
 interface Props {
   title: Title;
@@ -53,7 +53,7 @@ const seasons = sortedSeasons(title);
             return (
               <li>
                 <a
-                  href={getEpisodeRouteForTitle(title, kind, season.season, episode.episode)}
+                  href={getNavigableEpisodeRouteForTitle(title, kind, season.season, episode.episode)}
                   class={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition-all ${
                     active
                       ? 'border-brand-400/60 bg-brand-500/20 text-white'

@@ -41,6 +41,7 @@ const episodeTitle = `${workTitle} الموسم ${currentSeason} الحلقة ${
 const pageTitle = `${episodeTitle} مترجمة اون لاين — ${SITE.name}`;
 const description = `شاهد ${typeLabel} ${workTitle} الموسم ${currentSeason} الحلقة ${currentEpisode} مترجمة بجودة عالية مع روابط المواسم والحلقات على ${SITE.name}.`;
 const episodeOverview = cleanBrand(episode?.overview);
+const canWatchEpisode = (episode?.servers?.length || 0) > 0;
 const story = episodeOverview || buildMainDescription(title, kind, currentSeason + currentEpisode);
 const canonical = new URL(getEpisodeRouteForTitle(title, kind, currentSeason, currentEpisode), SITE.url).toString();
 const watchHref = `${gatewayRoute(title.slug)}?s=${currentSeason}&e=${currentEpisode}`;
@@ -120,12 +121,14 @@ const jsonLd = {
           )}
           <p class="mt-5 max-w-3xl text-sm leading-8 text-gray-300 md:text-base">{story}</p>
           <div class="mt-6 flex flex-wrap gap-3">
-            <a href={watchHref} class="btn-primary w-full justify-center px-7 py-3.5 text-base sm:w-auto">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-              مشاهدة الحلقة الآن
-            </a>
+            {canWatchEpisode && (
+              <a href={watchHref} class="btn-primary w-full justify-center px-7 py-3.5 text-base sm:w-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                مشاهدة الحلقة الآن
+              </a>
+            )}
             <a href={titleRoute} class="btn-secondary w-full justify-center px-6 py-3.5 text-base sm:w-auto">
               صفحة العمل
             </a>
