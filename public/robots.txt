@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /g/
 
-Sitemap: https://cinemaplus.site/sitemap-index.xml
+Sitemap: https://cinemanaplus.site/sitemap-index.xml

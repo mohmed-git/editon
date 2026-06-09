@@ -5,7 +5,7 @@ import sitemap from '@astrojs/sitemap';
 
 // اسم الموقع ورابطه للنشر
 export const SITE_NAME = 'CinemaPlus';
-export const SITE_URL = 'https://cinemaplus.site';
+export const SITE_URL = 'https://cinemanaplus.site';
 
 /** @param {string} page */
 function shouldIncludeInSitemap(page) {

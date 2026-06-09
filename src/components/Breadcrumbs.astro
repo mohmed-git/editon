@@ -1,7 +1,22 @@
 ---
+import { SITE } from '../lib/site';
+
 interface Crumb { label: string; href?: string }
-interface Props { items: Crumb[] }
-const { items } = Astro.props;
+interface Props { items: Crumb[]; schema?: boolean }
+const { items, schema = true } = Astro.props;
+
+const breadcrumbJsonLd = schema ? {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: items.map((crumb, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: crumb.label,
+    item: crumb.href
+      ? new URL(crumb.href, SITE.url).toString()
+      : new URL(Astro.url.pathname, SITE.url).toString(),
+  })),
+} : null;
 ---
 
 <nav aria-label="breadcrumb" class="text-xs sm:text-sm">
@@ -22,3 +37,7 @@ const { items } = Astro.props;
     ))}
   </ol>
 </nav>
+
+{breadcrumbJsonLd && (
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbJsonLd)} />
+)}

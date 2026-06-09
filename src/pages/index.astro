@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 import Grid from '../components/Grid.astro';
 import SectionHeader from '../components/SectionHeader.astro';
 import PosterCard from '../components/PosterCard.astro';
-import { getAllTitles, getTitlesByCategory, toIndexEntry } from '../lib/titles';
+import { getAllTitles, getTitlesByCategory, sortByLatest, sortByTopRated, sortFeatured, toIndexEntry } from '../lib/titles';
 import { SITE } from '../lib/site';
 import { listingRoute } from '../lib/routes';
 
@@ -17,13 +17,19 @@ function pickFeatured(arr: ReturnType<typeof getAllTitles>, n: number) {
     .map((x) => x.t);
 }
 
+const unsafeHeroTitlePattern = /(حملت|حامل|الرئيس التنفيذي|عشيق|إغواء|اغواء|جنس|sex|erotic|إيتشي|ايتشي|حريم)/i;
+function isSafeForHero(t: ReturnType<typeof getAllTitles>[number]) {
+  const text = `${t.clean_title} ${t.raw_name || ''} ${t.genre || ''}`;
+  return t.poster && !t.is_special && !unsafeHeroTitlePattern.test(text);
+}
+
 const movies = getTitlesByCategory('movie');
 const series = getTitlesByCategory('series');
 const anime = getTitlesByCategory('anime');
 
-// Hero slider items — pick 6 works with posters
-const heroCandidates = [...movies, ...series, ...anime].filter((t) => t.poster);
-const heroItems = pickFeatured(heroCandidates, 6).filter((t) => t.poster);
+// Hero slider items — curated, credible works only. Avoid special/OVA entries and sensitive titles as first impressions.
+const heroCandidates = sortFeatured([...movies, ...series, ...anime].filter(isSafeForHero));
+const heroItems = heroCandidates.slice(0, 6);
 
 // Deterministic year fallback (no fake ratings)
 function fakeYear(slug: string): number {
@@ -32,13 +38,14 @@ function fakeYear(slug: string): number {
   return 2018 + (h % 8);
 }
 
-const trending = pickFeatured(all.filter((t) => t.poster), 12);
+const posterTitles = all.filter((t) => t.poster);
+const trending = sortFeatured(posterTitles).slice(0, 12);
 // Show 18 items per home section (3 rows × 6 cols) with a clear 'See more' link
-const latestMovies = movies.slice(0, 18).map(toIndexEntry);
-const latestSeries = series.slice(0, 18).map(toIndexEntry);
-const latestAnime = anime.slice(0, 18).map(toIndexEntry);
-const featured = pickFeatured(all.filter((t) => t.poster), 18).map(toIndexEntry);
-const topRated = [...all.filter((t) => t.poster)].sort((a, b) => b.episodes_count - a.episodes_count).slice(0, 18).map(toIndexEntry);
+const latestMovies = sortByLatest(movies.filter((t) => t.poster)).slice(0, 18).map(toIndexEntry);
+const latestSeries = sortByLatest(series.filter((t) => t.poster)).slice(0, 18).map(toIndexEntry);
+const latestAnime = sortFeatured(anime.filter((t) => t.poster && !t.is_special)).slice(0, 18).map(toIndexEntry);
+const featured = sortFeatured(posterTitles).slice(0, 18).map(toIndexEntry);
+const topRated = sortByTopRated(posterTitles).slice(0, 18).map(toIndexEntry);
 
 const stats = {
   movies: movies.length,
@@ -283,7 +290,7 @@ const trendingDataJson = JSON.stringify(trending.map(t => ({
     <section>
       <SectionHeader
         title="الأنمي الشائع"
-        subtitle={`${stats.anime} عمل أنمي مترجم`}
+        subtitle="مختارات أنمي غير خاصة مرتبة حسب الشعبية والتقييم"
         href={listingRoute('anime')}
         hrefLabel="تصفّح كل الأنمي"
       />
@@ -300,7 +307,7 @@ const trendingDataJson = JSON.stringify(trending.map(t => ({
 
     <!-- Top Rated -->
     <section>
-      <SectionHeader title="الأعلى تقييماً" subtitle="أعمال نالت إعجاب المشاهدين" />
+      <SectionHeader title="الأعلى تقييماً" subtitle="وفق تقييمات موثوقة وليس حسب عدد الحلقات" />
       <Grid items={topRated} />
     </section>
 

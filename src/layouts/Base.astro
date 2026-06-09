@@ -37,9 +37,6 @@ const url = new URL(Astro.url.pathname, SITE.url).toString();
 const canonicalUrl = canonical || url;
 const ogImage = image && image.startsWith('http') ? image : new URL(image, SITE.url).toString();
 const ogImageAlt = `${fullTitle} - ${SITE.name}`;
-
-const defaultKeywords =
-  'افلام اون لاين, مشاهدة افلام, مسلسلات مترجمة, انمي مترجم, افلام HD, مشاهدة مباشرة, سينما بلس, افلام 2024, افلام 2025, مسلسلات اجنبية, انمي اون لاين';
 ---
 
 <!DOCTYPE html>
@@ -53,7 +50,7 @@ const defaultKeywords =
     <!-- Primary -->
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
-    <meta name="keywords" content={keywords || defaultKeywords} />
+    {keywords && <meta name="keywords" content={keywords} />}
     <link rel="canonical" href={canonicalUrl} />
 
     {noindex && <meta name="robots" content="noindex, nofollow" />}

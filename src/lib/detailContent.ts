@@ -393,12 +393,21 @@ function fitSeoTitle(arabized: string, foreign: string, kind: DetailKind): strin
 }
 
 function buildSeoTeaser(title: Title, max: number): string {
-  const story = sourceStory(title) || title.description || title.story || '';
-  const firstSentence = normalizeWhitespace(cleanBrand(story))
-    .split(/[.!؟?،]/)
+  const story = normalizeWhitespace(cleanBrand(sourceStory(title) || title.description || title.story || ''));
+  const fallback = 'قصة مشوقة بتفاصيل واضحة ومشاهدة عالية الجودة، مع معلومات الحلقات والجودة قبل المشاهدة';
+  if (!story) return truncateChars(fallback, max);
+
+  // لا نقسم عند الفاصلة العربية؛ هذا كان ينتج أوصافاً مبتورة مثل: "تبدأ القصة عندما تلتقي بيري".
+  const sentenceParts = story
+    .split(/[.!؟?]+/)
     .map((part) => part.trim())
-    .find(Boolean);
-  return truncateChars(firstSentence || 'قصة مشوقة بتفاصيل واضحة ومشاهدة عالية الجودة', max);
+    .filter(Boolean);
+  const firstSentence = sentenceParts[0] || story;
+  const candidate = firstSentence.length >= 70 || sentenceParts.length === 1
+    ? firstSentence
+    : `${firstSentence}. ${sentenceParts[1] || ''}`.trim();
+
+  return truncateChars(candidate || fallback, max);
 }
 
 export function getDisplayTitle(title: Title): string {
@@ -998,14 +1007,23 @@ export function buildSeoTitle(title: Title, kind: DetailKind): string {
 }
 
 export function buildMetaDescription(title: Title, kind: DetailKind): string {
-  const { arabized, foreign } = seoNamePair(title);
   const type = typeName(kind);
   const year = title.year || '';
-  const prefix = `${foreign} ${arabized} ${type}${year ? ` ${year}` : ''} | `;
-  const suffix = ` | شاهد مترجم HD على ${BRAND_NAME}`;
-  const teaserLimit = Math.max(24, 155 - prefix.length - suffix.length);
-  const teaser = buildSeoTeaser(title, teaserLimit);
-  return truncateChars(`${prefix}${teaser}${suffix}`, 155);
+  const compactName = truncateChars(getWorkTitleWithoutYear(title) || getWorkTitle(title), 44);
+  const prefix = `شاهد ${type} ${compactName}${year ? ` ${year}` : ''}: `;
+  const suffix = ` مترجم HD على ${BRAND_NAME}.`;
+  let teaserLimit = Math.max(50, 152 - prefix.length - suffix.length);
+  let teaser = buildSeoTeaser(title, teaserLimit);
+  let result = `${prefix}${teaser}${suffix}`;
+
+  // Keep the trust/action suffix intact; never let final truncation cut the brand/domain signal.
+  while (result.length > 155 && teaserLimit > 45) {
+    teaserLimit -= 5;
+    teaser = buildSeoTeaser(title, teaserLimit);
+    result = `${prefix}${teaser}${suffix}`;
+  }
+  if (result.length <= 155) return result;
+  return `${truncateChars(`${prefix}${teaser}`, 155 - suffix.length)}${suffix}`;
 }
 
 export function buildJsonLdDescription(title: Title, kind: DetailKind): string {

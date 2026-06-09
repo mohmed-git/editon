@@ -8,7 +8,7 @@ export const SITE = {
   tagline: 'مشاهدة أفلام ومسلسلات وأنمي مترجمة اون لاين بجودة عالية',
   description:
     'سينما بلس CinemaPlus موقع عربي لمشاهدة احدث الافلام والمسلسلات والانمي مترجم اون لاين بجودة عالية HD و4K مجاناً بدون اعلانات مزعجة، مع تحديث يومي وروابط مشاهدة مباشرة سريعة.',
-  url: 'https://cinemaplus.site',
+  url: 'https://cinemanaplus.site',
   locale: 'ar-SA',
   themeColor: '#06b6d4',
   defaultOgImage: '/og-default.png',
