@@ -94,9 +94,9 @@ export function getNavigableEpisodeRouteForTitle(
   season: number,
   episode: number
 ): string {
-  return hasEpisodePages(title)
-    ? getEpisodeRouteForTitle(title, kind, season, episode)
-    : getGatewayEpisodeRouteForTitle(title, season, episode);
+  // Episode pages are removed — always link to the season page with ?e= query string.
+  // The season page reads ?e= client-side and shows episode details dynamically.
+  return `${getSeasonRouteForTitle(title, kind, season)}?e=${episode}`;
 }
 
 export function getFlatEpisodes(title: Title): EpisodeRef[] {
