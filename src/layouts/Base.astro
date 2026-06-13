@@ -97,43 +97,85 @@ const ogImageAlt = `${fullTitle} - ${SITE.name}`;
       <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     )}
 
-    <!-- ═══ Adsterra: Popunder — يُشغَّل بكل صفحة (كل 5 دقائق) ═══ -->
+    <!-- ═══ Adsterra: Popunder — فوري عند كل صفحة + كل دقيقة بنفس الصفحة ═══ -->
     <script>
       (function(){
-        var KEY="_pu_v2";
-        var INTERVAL=300000; // 5 دقائق
-        function shouldFire(){
-          try{ return Date.now()-parseInt(localStorage.getItem(KEY)||"0",10)>INTERVAL; }
-          catch(e){ return true; }
-        }
-        if(shouldFire()){
-          try{ localStorage.setItem(KEY,String(Date.now())); }catch(e){}
+        var PU_URL="https://expulsiondatabaseinnocent.com/ee/83/d3/ee83d32a4831963ddc166312735eb9d8.js";
+        var PAGE_KEY="_pu_page";
+        var INTERVAL=60000; // دقيقة واحدة لنفس الصفحة
+
+        function loadPopunder(){
           var s=document.createElement("script");
-          s.src="https://expulsiondatabaseinnocent.com/ee/83/d3/ee83d32a4831963ddc166312735eb9d8.js";
+          s.src=PU_URL;
           document.head.appendChild(s);
         }
+
+        // كل صفحة جديدة = رقم عشوائي فريد
+        var currentPage=window.location.pathname;
+        var lastPage=sessionStorage.getItem(PAGE_KEY+"_path")||"";
+
+        if(currentPage!==lastPage){
+          // صفحة جديدة — شغّل فوراً
+          sessionStorage.setItem(PAGE_KEY+"_path",currentPage);
+          loadPopunder();
+        }
+
+        // كل دقيقة بنفس الصفحة
+        setInterval(loadPopunder, INTERVAL);
       })();
     </script>
     <!-- ═══ Adsterra: Social Bar ═══ -->
     <script src="https://pl29732229.effectivecpmnetwork.com/6a/4f/c7/6a4fc7ce371ab54cb46f7a0a514f61d8.js"></script>
-    <!-- ═══ Adsterra: Smartlink كـ Popunder ثانوي + Smartlink_1 Anti-Adblock ═══ -->
+    <!-- ═══ Adsterra: Smartlink — فوري عند كل صفحة + كل دقيقة بنفس الصفحة ═══ -->
     <script>
       (function(){
-        var SL="https://expulsiondatabaseinnocent.com/wbnrckax?key=af6decf62eddc36667ffab047fdae426";
-        var KEY="_sl_v2";
-        function canFire(){try{return Date.now()-parseInt(sessionStorage.getItem(KEY)||"0",10)>300000;}catch(e){return false;}}
-        function fire(e){
-          if(!canFire())return;
-          var t=e.target;
-          if(t.closest&&t.closest('a[href*="effectivecpmnetwork"],a[href*="highperformanceformat"]'))return;
-          try{sessionStorage.setItem(KEY,String(Date.now()));}catch(e){}
-          // تناوب بين الرابطين لزيادة الأرباح
+        var SL1="https://expulsiondatabaseinnocent.com/wbnrckax?key=af6decf62eddc36667ffab047fdae426";
+        var SL2="https://expulsiondatabaseinnocent.com/hnn75fn9?key=dd54d1faa15700e7397fc1ff8f2ae5e1";
+        var INTERVAL=60000; // دقيقة واحدة
+        var PAGE_KEY="_sl_page";
+        var lastFire=0;
+
+        function getUrl(){
           var count=parseInt(localStorage.getItem("_sl_count")||"0",10);
-          var url=count%2===0?SL:"https://expulsiondatabaseinnocent.com/hnn75fn9?key=dd54d1faa15700e7397fc1ff8f2ae5e1";
           localStorage.setItem("_sl_count",String(count+1));
-          try{window.open(url,"_blank","noopener,noreferrer");}catch(e){}
+          return count%2===0?SL1:SL2;
         }
-        document.addEventListener("click",fire,{passive:true});
+
+        function openSmartlink(){
+          try{ window.open(getUrl(),"_blank","noopener,noreferrer"); }catch(e){}
+        }
+
+        function tryFire(){
+          var now=Date.now();
+          if(now-lastFire<INTERVAL) return;
+          lastFire=now;
+          openSmartlink();
+        }
+
+        // صفحة جديدة = يشتغل فوراً عند أول نقرة
+        var currentPage=window.location.pathname;
+        var lastPage=sessionStorage.getItem(PAGE_KEY)||"";
+        var isNewPage=currentPage!==lastPage;
+        if(isNewPage) sessionStorage.setItem(PAGE_KEY,currentPage);
+
+        // أول نقرة على الصفحة
+        var firstClick=true;
+        document.addEventListener("click",function(e){
+          var t=e.target;
+          if(t.closest&&t.closest('a[href*="expulsiondatabaseinnocent"]')) return;
+          if(firstClick && isNewPage){
+            firstClick=false;
+            lastFire=Date.now();
+            openSmartlink();
+            return;
+          }
+          tryFire();
+        },{passive:true});
+
+        // كل دقيقة بنفس الصفحة بدون انتظار نقرة
+        setInterval(function(){
+          lastFire=0; // السماح للنقرة القادمة بالتشغيل
+        }, INTERVAL);
       })();
     </script>
   </head>
