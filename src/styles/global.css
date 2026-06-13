@@ -520,3 +520,26 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ═══════════════════════════════════════════════
+   إعلانات Adsterra — تعديلات التخطيط
+   ═══════════════════════════════════════════════ */
+
+/* مساحة إضافية في الأسفل على الموبايل
+   لمنع تعارض Social Bar مع شريط التنقل السفلي */
+@media (max-width: 767px) {
+  body {
+    padding-bottom: 120px; /* 64px nav + ~56px social bar */
+  }
+}
+
+/* إخفاء البانرات الفارغة لو لم تُحمَّل */
+.ad-slot:empty { display: none !important; }
+
+/* بانر 300x250 مضمّن في المحتوى */
+.ad-square-inline {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem auto;
+  max-width: 300px;
+}

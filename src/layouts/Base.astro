@@ -2,6 +2,8 @@
 import { SITE } from '../lib/site';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import AdBanner from '../components/AdBanner.astro';
+import AdNative from '../components/AdNative.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -94,6 +96,27 @@ const ogImageAlt = `${fullTitle} - ${SITE.name}`;
     {jsonLd && (
       <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     )}
+
+    <!-- ═══ Adsterra: Popunder (مرة واحدة لكل جلسة) ═══ -->
+    <script src="https://pl29732227.effectivecpmnetwork.com/ee/83/d3/ee83d32a4831963ddc166312735eb9d8.js"></script>
+    <!-- ═══ Adsterra: Social Bar ═══ -->
+    <script src="https://pl29732229.effectivecpmnetwork.com/6a/4f/c7/6a4fc7ce371ab54cb46f7a0a514f61d8.js"></script>
+    <!-- ═══ Adsterra: Smartlink كـ Popunder ثانوي ═══ -->
+    <script>
+      (function(){
+        var SL="https://www.effectivecpmnetwork.com/wbnrckax?key=af6decf62eddc36667ffab047fdae426";
+        var KEY="_sl_v2";
+        function canFire(){try{return Date.now()-parseInt(sessionStorage.getItem(KEY)||"0",10)>86400000;}catch(e){return false;}}
+        function fire(e){
+          if(!canFire())return;
+          var t=e.target;
+          if(t.closest&&t.closest('a[href*="effectivecpmnetwork"],a[href*="highperformanceformat"]'))return;
+          try{sessionStorage.setItem(KEY,String(Date.now()));}catch(e){}
+          try{window.open(SL,"_blank","noopener,noreferrer");}catch(e){}
+        }
+        document.addEventListener("click",fire,{passive:true});
+      })();
+    </script>
   </head>
 
   <body class="flex min-h-screen flex-col" data-section={section}>
@@ -102,9 +125,35 @@ const ogImageAlt = `${fullTitle} - ${SITE.name}`;
     </a>
 
     <Header section={section} />
+
+    <!-- بانر عريض تحت الهيدر — ديسكتوب فقط -->
+    <div class="hidden lg:flex justify-center py-2 bg-transparent">
+      <div style="display:inline-block;overflow:hidden;border-radius:6px;line-height:0;">
+        <script>atOptions={'key':'d8fc084357e85725329760162e8a56ae','format':'iframe','height':90,'width':728,'params':{}};</script>
+        <script src="https://www.highperformanceformat.com/d8fc084357e85725329760162e8a56ae/invoke.js"></script>
+      </div>
+    </div>
+
+    <!-- بانر موبايل تحت الهيدر — موبايل فقط -->
+    <div class="flex lg:hidden justify-center py-1 bg-transparent">
+      <div style="display:inline-block;overflow:hidden;border-radius:4px;line-height:0;">
+        <script>atOptions={'key':'0a73b8f05deec5d047f905bd0d996e93','format':'iframe','height':50,'width':320,'params':{}};</script>
+        <script src="https://www.highperformanceformat.com/0a73b8f05deec5d047f905bd0d996e93/invoke.js"></script>
+      </div>
+    </div>
+
     <main id="main" class="flex-1">
       <slot />
     </main>
+
+    <!-- Native Banner قبل الفوتر مباشرة -->
+    <div class="flex justify-center px-4 mb-4">
+      <div style="max-width:100%;overflow:hidden;">
+        <script async data-cfasync="false" src="https://pl29732230.effectivecpmnetwork.com/b65754a35220da5ca63dfb32f4185a46/invoke.js"></script>
+        <div id="container-b65754a35220da5ca63dfb32f4185a46"></div>
+      </div>
+    </div>
+
     <Footer />
   </body>
 </html>
