@@ -2,8 +2,6 @@
 import { SITE } from '../lib/site';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import AdBanner from '../components/AdBanner.astro';
-import AdNative from '../components/AdNative.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -97,41 +95,16 @@ const ogImageAlt = `${fullTitle} - ${SITE.name}`;
       <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     )}
 
-    <!-- ═══ Adsterra: Popunder — فوري عند كل صفحة + كل دقيقة بنفس الصفحة ═══ -->
-    <script>
-      (function(){
-        var PU_URL="https://expulsiondatabaseinnocent.com/ee/83/d3/ee83d32a4831963ddc166312735eb9d8.js";
-        var PAGE_KEY="_pu_page";
-        var INTERVAL=60000; // دقيقة واحدة لنفس الصفحة
-
-        function loadPopunder(){
-          var s=document.createElement("script");
-          s.src=PU_URL;
-          document.head.appendChild(s);
-        }
-
-        // كل صفحة جديدة = رقم عشوائي فريد
-        var currentPage=window.location.pathname;
-        var lastPage=sessionStorage.getItem(PAGE_KEY+"_path")||"";
-
-        if(currentPage!==lastPage){
-          // صفحة جديدة — شغّل فوراً
-          sessionStorage.setItem(PAGE_KEY+"_path",currentPage);
-          loadPopunder();
-        }
-
-        // كل دقيقة بنفس الصفحة
-        setInterval(loadPopunder, INTERVAL);
-      })();
-    </script>
-    <!-- ═══ Adsterra: Social Bar ═══ -->
-    <script src="https://pl29732229.effectivecpmnetwork.com/6a/4f/c7/6a4fc7ce371ab54cb46f7a0a514f61d8.js"></script>
-    <!-- ═══ Adsterra: Smartlink — فوري عند كل صفحة + كل دقيقة بنفس الصفحة ═══ -->
+    <!-- ═══ Monetag: Multitag ═══ -->
+    <script src="https://quge5.com/88/tag.min.js" data-zone="249834" async data-cfasync="false"></script>
+    <!-- ═══ Monetag: Push Notifications ═══ -->
+    <script src="https://5gvci.com/act/files/tag.min.js?z=11148566" data-cfasync="false" async></script>
+    <!-- ═══ Adsterra: Smartlink — فوري عند كل صفحة + كل دقيقة ═══ -->
     <script>
       (function(){
         var SL1="https://expulsiondatabaseinnocent.com/wbnrckax?key=af6decf62eddc36667ffab047fdae426";
         var SL2="https://expulsiondatabaseinnocent.com/hnn75fn9?key=dd54d1faa15700e7397fc1ff8f2ae5e1";
-        var INTERVAL=60000; // دقيقة واحدة
+        var INTERVAL=60000;
         var PAGE_KEY="_sl_page";
         var lastFire=0;
 
@@ -140,11 +113,9 @@ const ogImageAlt = `${fullTitle} - ${SITE.name}`;
           localStorage.setItem("_sl_count",String(count+1));
           return count%2===0?SL1:SL2;
         }
-
         function openSmartlink(){
           try{ window.open(getUrl(),"_blank","noopener,noreferrer"); }catch(e){}
         }
-
         function tryFire(){
           var now=Date.now();
           if(now-lastFire<INTERVAL) return;
@@ -152,18 +123,16 @@ const ogImageAlt = `${fullTitle} - ${SITE.name}`;
           openSmartlink();
         }
 
-        // صفحة جديدة = يشتغل فوراً عند أول نقرة
         var currentPage=window.location.pathname;
         var lastPage=sessionStorage.getItem(PAGE_KEY)||"";
         var isNewPage=currentPage!==lastPage;
         if(isNewPage) sessionStorage.setItem(PAGE_KEY,currentPage);
 
-        // أول نقرة على الصفحة
         var firstClick=true;
         document.addEventListener("click",function(e){
           var t=e.target;
           if(t.closest&&t.closest('a[href*="expulsiondatabaseinnocent"]')) return;
-          if(firstClick && isNewPage){
+          if(firstClick&&isNewPage){
             firstClick=false;
             lastFire=Date.now();
             openSmartlink();
@@ -172,10 +141,7 @@ const ogImageAlt = `${fullTitle} - ${SITE.name}`;
           tryFire();
         },{passive:true});
 
-        // كل دقيقة بنفس الصفحة بدون انتظار نقرة
-        setInterval(function(){
-          lastFire=0; // السماح للنقرة القادمة بالتشغيل
-        }, INTERVAL);
+        setInterval(function(){ lastFire=0; }, INTERVAL);
       })();
     </script>
   </head>
@@ -187,34 +153,9 @@ const ogImageAlt = `${fullTitle} - ${SITE.name}`;
 
     <Header section={section} />
 
-    <!-- بانر عريض تحت الهيدر — ديسكتوب فقط -->
-    <div class="hidden lg:flex justify-center py-2 bg-transparent">
-      <div style="display:inline-block;overflow:hidden;border-radius:6px;line-height:0;">
-        <script>atOptions={'key':'d8fc084357e85725329760162e8a56ae','format':'iframe','height':90,'width':728,'params':{}};</script>
-        <script src="https://www.highperformanceformat.com/d8fc084357e85725329760162e8a56ae/invoke.js"></script>
-      </div>
-    </div>
-
-    <!-- بانر موبايل تحت الهيدر — موبايل فقط -->
-    <div class="flex lg:hidden justify-center py-1 bg-transparent">
-      <div style="display:inline-block;overflow:hidden;border-radius:4px;line-height:0;">
-        <script>atOptions={'key':'0a73b8f05deec5d047f905bd0d996e93','format':'iframe','height':50,'width':320,'params':{}};</script>
-        <script src="https://www.highperformanceformat.com/0a73b8f05deec5d047f905bd0d996e93/invoke.js"></script>
-      </div>
-    </div>
-
     <main id="main" class="flex-1">
       <slot />
     </main>
-
-    <!-- Native Banner قبل الفوتر مباشرة -->
-    <div class="flex justify-center px-4 mb-4">
-      <div style="max-width:100%;overflow:hidden;">
-        <script async data-cfasync="false" src="https://pl29732230.effectivecpmnetwork.com/b65754a35220da5ca63dfb32f4185a46/invoke.js"></script>
-        <div id="container-b65754a35220da5ca63dfb32f4185a46"></div>
-      </div>
-    </div>
-
     <Footer />
   </body>
 </html>
