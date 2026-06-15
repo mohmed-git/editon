@@ -95,6 +95,15 @@ const ogImageAlt = `${fullTitle} - ${SITE.name}`;
       <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     )}
 
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-247WM96LS1"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-247WM96LS1');
+    </script>
+
     <!-- ═══ Adsterra: Popunder — فوري عند كل صفحة + كل دقيقة ═══ -->
     <script>
       (function(){
