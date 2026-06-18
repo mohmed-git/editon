@@ -41,6 +41,10 @@ function capByCategory(items: Title[], limit: number): Title[] {
 const ALL_TITLES: Title[] = capByCategory(RAW_TITLES, PREVIEW_LIMIT).map((t) => ({
   ...t,
   url: detailRoute(t.category, t.slug),
+  relatedAnimeSeasons: t.relatedAnimeSeasons?.map((s: any) => ({
+    ...s,
+    url: detailRoute('anime', s.slug),
+  })),
 }));
 
 // Build a slug → Title map for quick lookup
