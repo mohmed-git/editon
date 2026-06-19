@@ -1,5 +1,8 @@
-# تحويل صفحات حلقات الأنمي → صفحة الموسم (301 دائم)
-/n/:slug/c/:season/e/:episode  /n/:slug/c/:season  301
+# Cloudflare Pages redirects for old indexed episode pages.
+# Episodes were merged into season pages, so legacy episode URLs should not 404.
 
-# تحويل صفحات حلقات المسلسلات → صفحة الموسم (301 دائم)
-/d/:slug/c/:season/e/:episode  /d/:slug/c/:season  301
+/d/:slug/c/:season/e/:episode /d/:slug/c/:season 301
+/d/:slug/c/:season/e/:episode/ /d/:slug/c/:season 301
+
+/n/:slug/c/:season/e/:episode /n/:slug/c/:season 301
+/n/:slug/c/:season/e/:episode/ /n/:slug/c/:season 301
