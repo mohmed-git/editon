@@ -1,7 +1,5 @@
 User-agent: *
 Allow: /
 Disallow: /g/
-Disallow: /n/*/c/*/e/
-Disallow: /d/*/c/*/e/
 
 Sitemap: https://cinemanaplus.site/sitemap-index.xml
