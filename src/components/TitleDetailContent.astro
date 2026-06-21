@@ -1,169 +1,183 @@
 ---
 import Grid from './Grid.astro';
+import RelatedAnimeSeasons from './RelatedAnimeSeasons.astro';
+import SectionHeader from './SectionHeader.astro';
+import SeasonsTabs from './SeasonsTabs.astro';
 import TrailerEmbed from './TrailerEmbed.astro';
 import type { Title, TitleIndexEntry } from '../lib/types';
-import { buildInfoRows, buildMainDescription, cleanBrand, getCategoryTags, getWorkTitle } from '../lib/detailContent';
+import {
+  buildInfoRows,
+  buildMainDescription,
+  cleanBrand,
+  getCategoryTags,
+  getWorkTitle,
+} from '../lib/detailContent';
 import type { DetailKind } from '../lib/detailContent';
-import { getEpisodeRouteForTitle, getFirstEpisodeRoute } from '../lib/episodeRoutes';
+import { getFirstEpisodeWatchRoute } from '../lib/episodeRoutes';
+import { gatewayRoute } from '../lib/routes';
+import { SITE } from '../lib/site';
 
-interface Props { title: Title; kind: DetailKind; similar: TitleIndexEntry[]; similarHref: string; patternId?: number; }
+interface Props {
+  title: Title;
+  kind: DetailKind;
+  similar: TitleIndexEntry[];
+  similarHref: string;
+  patternId?: number;
+}
+
 const { title, kind, similar, similarHref, patternId } = Astro.props;
+
 const workTitle = getWorkTitle(title);
 const mainDescription = buildMainDescription(title, kind, patternId);
 const infoRows = buildInfoRows(title, kind);
 const tags = getCategoryTags(title, kind);
 const categoryPath = kind === 'anime' ? 'anime' : kind === 'series' ? 'series' : 'movie';
 const firstEpisode = title.seasons[0]?.episodes[0] ?? null;
-const watchHref = kind === 'movie' ? `/watch/${title.slug}` : getFirstEpisodeRoute(title, categoryPath as 'series' | 'anime');
-const ratingRaw = title.imdb_rating || title.rating || '8.5';
-const ratingNumber = Number.parseFloat(String(ratingRaw)) || 8.5;
-const progress = Math.min(100, Math.round(ratingNumber * 10));
-const cinemaProSourcePath = title.url || `/${categoryPath}/${title.slug}`;
-
-// بناء رابط CinemanaPlus مباشرة وقت البناء (Server-Side)
-// بدل الاعتماد على JavaScript لتحديثه بعد التحميل — هذا يضمن أن Googlebot
-// يرى الرابط الصحيح من أول زحفة على الـ HTML الخام، بدون انتظار تنفيذ JS
-const cinemanaCategoryMap: Record<string, string> = { movie: 'f', series: 'd', anime: 'n' };
-const cinemanaSegments = cinemaProSourcePath.split('/').filter(Boolean);
-if (cinemanaSegments[0] && cinemanaCategoryMap[cinemanaSegments[0]]) {
-  cinemanaSegments[0] = cinemanaCategoryMap[cinemanaSegments[0]];
-}
-const cinemanaPlusUrl = `https://cinemanaplus.site/${cinemanaSegments.join('/')}`;
-const tabs = ['معلومات', ...(kind !== 'movie' ? ['حلقات'] : []), 'مشابهة', 'تعليقات'];
-const seasons = title.seasons || [];
-const activeSeason = seasons[0]?.season || 1;
+const hasPlayableEpisode = (firstEpisode?.servers?.length || 0) > 0;
+const watchHref = kind === 'movie'
+  ? gatewayRoute(title.slug)
+  : getFirstEpisodeWatchRoute(title, categoryPath as 'series' | 'anime');
+const storyTitle = kind === 'movie' ? `قصة فيلم ${workTitle}` : kind === 'series' ? `قصة مسلسل ${workTitle}` : `قصة أنمي ${workTitle}`;
+const infoTitle = kind === 'movie' ? 'معلومات الفيلم' : kind === 'series' ? 'معلومات المسلسل' : 'معلومات الأنمي';
+const watchTitle = kind === 'movie' ? 'صفحة مشاهدة الفيلم' : kind === 'series' ? 'صفحة مشاهدة المسلسل' : 'صفحة مشاهدة الأنمي';
+const watchText = kind === 'movie'
+  ? `انتقل إلى صفحة مشاهدة ${workTitle} مباشرة مع الحفاظ على صفحة التفاصيل للرجوع إلى القصة والمعلومات والتريلر.`
+  : `ابدأ من الحلقة الأولى، ثم تنقل بين المواسم والحلقات من صفحة المشاهدة أو من تبويب الحلقات في هذه الصفحة.`;
+const watchButton = kind === 'movie' ? 'مشاهدة الفيلم الآن' : 'مشاهدة الحلقة الأولى';
+const similarTitle = kind === 'movie' ? 'أفلام مشابهة' : kind === 'series' ? 'مسلسلات مشابهة' : 'أنمي مشابه';
+const similarSubtitle = kind === 'movie' ? 'اختيارات قريبة من نفس التصنيفات' : 'أعمال قريبة من نفس الأجواء والتصنيفات';
+const posterAlt = `${workTitle} على ${SITE.name}`;
 ---
 
-<article class="work-page" data-detail-template="radical-cinema-pro">
-  <section class="work-hero">
-    {title.poster && <img class="work-backdrop" src={title.poster} alt="" aria-hidden="true" loading="eager" referrerpolicy="no-referrer" />}
-    <div class="work-backdrop-overlay"></div>
-    <div class="container-app work-hero__inner">
-      <aside class="work-poster-wrap">
-        {title.poster ? <img class="work-poster" src={title.poster} alt={workTitle} loading="eager" referrerpolicy="no-referrer" /> : <div class="work-poster fallback">{workTitle}</div>}
-      </aside>
-      <div class="work-copy">
-        <span class="chip-brand">{title.category_label}</span>
-        <h1>{workTitle}</h1>
-        <p>{mainDescription}</p>
-        <div class="work-stats">
-          <div><strong>{title.episodes_count.toLocaleString('ar-EG')}</strong><span>المشاهدات</span></div>
-          <div><strong>{ratingNumber.toFixed(1)}</strong><span>التقييم</span></div>
-          <div><strong>{title.year || '—'}</strong><span>السنة</span></div>
-          <div><strong>{title.duration || `${title.episodes_count} حلقة`}</strong><span>المدة</span></div>
-        </div>
-        <div class="rating-progress" aria-label={`تقييم ${progress}%`}><span style={`width:${progress}%`}></span></div>
-        {firstEpisode && <a href={watchHref} class="btn-primary work-watch">▶ مشاهدة الآن</a>}
-      </div>
-    </div>
-  </section>
+<section class="container-app py-10" data-detail-template="topcinema-inspired">
+  <div class="grid grid-cols-1 gap-8 lg:grid-cols-12">
+    <div class="space-y-7 lg:col-span-8">
+      <section class="glass-panel p-5 md:p-6">
+        <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-white">
+          <span class="flex h-6 w-1 rounded-full bg-gradient-to-b from-brand-400 to-gold-400"></span>
+          {storyTitle}
+        </h2>
+        <p class="text-sm leading-8 text-gray-300 md:text-base">{mainDescription}</p>
+      </section>
 
-  <section class="container-app work-body">
-    <nav class="work-tabs" aria-label="تبويبات العمل">
-      {tabs.map((tab, i) => <button type="button" class={`tab ${i === 0 ? 'tab-active' : 'tab-inactive'}`} data-tab={tab}>{tab}</button>)}
-    </nav>
-
-    <section class="tab-panel" data-panel="معلومات">
-      <div class="work-info-grid">
-        <section class="glass-panel p-5 md:p-7">
-          <h2 class="section-title">القصة والمعلومات</h2>
-          <p class="mt-8 leading-8 text-[#9CA3AF]">{mainDescription}</p>
-          {tags.length > 0 && <div class="mt-6 flex flex-wrap gap-2">{tags.map((tag) => <a href={`/search?q=${encodeURIComponent(tag)}`} class="filter-chip">{tag}</a>)}</div>}
-        </section>
-        <aside class="glass-panel p-5 md:p-7">
-          <h2 class="mb-5 text-xl font-black text-[#F9FAFB]">بيانات العمل</h2>
-          <div class="space-y-2">
-            {infoRows.map((row) => <div class="flex justify-between gap-4 border-b border-white/[0.07] py-3 text-sm"><span class="text-[#9CA3AF]">{row.label}</span><strong class="text-left text-[#F9FAFB]">{row.value}</strong></div>)}
-            <div class="flex justify-between gap-4 py-3 text-sm"><span class="text-[#9CA3AF]">اللغة</span><strong class="text-[#F9FAFB]">{cleanBrand(title.language) || 'مترجم'}</strong></div>
-          </div>
-        </aside>
-      </div>
-      <TrailerEmbed trailerId={title.trailerId} title={workTitle} type={kind} />
-    </section>
-
-    {kind !== 'movie' && (
-      <section class="tab-panel hidden" data-panel="حلقات">
-        <div class="episodes-toolbar">
-          <label for="season-select">اختر الموسم</label>
-          <select id="season-select">
-            {seasons.map((s) => <option value={s.season} selected={s.season === activeSeason}>الموسم {s.season} · {s.episodes_count} حلقة</option>)}
-          </select>
-        </div>
-        <div class="episodes-grid-new">
-          {seasons.map((season) => season.episodes.map((ep) => (
-            <a href={getEpisodeRouteForTitle(title, categoryPath as 'series' | 'anime', season.season, ep.episode)} class={`episode-tile ${season.season === activeSeason ? '' : 'hidden'}`} data-season={season.season}>
-              <div class="episode-thumb">
-                {title.poster && <img src={title.poster} alt={`${workTitle} الحلقة ${ep.episode}`} loading="lazy" referrerpolicy="no-referrer" />}
-                <span>#{ep.episode}</span>
-              </div>
-              <div class="episode-meta"><strong>{ep.title || `الحلقة ${ep.episode}`}</strong><small>{ep.runtime ? `${ep.runtime} دقيقة` : `${ep.servers.length} سيرفر`} · مشاهدة</small></div>
-            </a>
-          )))}
+      <section class="glass-panel p-5 md:p-6">
+        <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-white">
+          <span class="flex h-6 w-1 rounded-full bg-gradient-to-b from-brand-400 to-gold-400"></span>
+          {infoTitle}
+        </h2>
+        <div class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          {infoRows.map((row) => (
+            <div class="flex justify-between gap-4 border-b border-white/[0.04] py-2">
+              <span class="shrink-0 text-gray-400">{row.label}</span>
+              <span class="text-left font-semibold text-white">{row.value}</span>
+            </div>
+          ))}
         </div>
       </section>
-    )}
 
-    <section class="tab-panel hidden" data-panel="مشابهة">
-      <div class="flex items-center justify-between gap-4 mb-8"><h2 class="section-title">أعمال مشابهة</h2><a class="filter-chip" href={similarHref}>عرض المزيد</a></div>
+      {tags.length > 0 && (
+        <section class="glass-panel p-5 md:p-6">
+          <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-white">
+            <span class="flex h-6 w-1 rounded-full bg-gradient-to-b from-brand-400 to-gold-400"></span>
+            التصنيفات
+          </h2>
+          <div class="flex flex-wrap gap-2">
+            {tags.map((tag) => (
+              <a
+                href={`/search?q=${encodeURIComponent(tag)}`}
+                class="rounded-full border border-white/[0.06] bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-gray-300 transition-colors hover:border-brand-400/40 hover:bg-brand-500/10 hover:text-brand-200"
+              >
+                {tag}
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <TrailerEmbed trailerId={title.trailerId} title={workTitle} type={kind} />
+
+      {kind === 'anime' && <RelatedAnimeSeasons title={title} />}
+
+      {hasPlayableEpisode && (
+        <section class="glass-panel p-5 md:p-6">
+          <h2 class="mb-3 flex items-center gap-2 text-lg font-bold text-white">
+            <span class="flex h-6 w-1 rounded-full bg-gradient-to-b from-brand-400 to-gold-400"></span>
+            {watchTitle}
+          </h2>
+          <p class="mb-5 text-sm leading-7 text-gray-300">{watchText}</p>
+          <a href={watchHref} class="btn-primary w-full justify-center px-7 py-3.5 text-base sm:w-auto">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+            {watchButton}
+          </a>
+        </section>
+      )}
+
+      {kind !== 'movie' && (
+        <section>
+          <SectionHeader
+            title="المواسم والحلقات"
+            subtitle={`${title.seasons_count} موسم · ${title.episodes_count} حلقة`}
+            eyebrow="EPISODES"
+          />
+          <SeasonsTabs title={title} categoryPath={categoryPath} />
+        </section>
+      )}
+    </div>
+
+    <aside class="space-y-5 lg:col-span-4">
+      <div class="glass-panel overflow-hidden lg:sticky lg:top-24">
+        <div class="relative aspect-[2/3] w-full bg-surface-3">
+          {title.poster ? (
+            <img
+              src={title.poster}
+              alt={posterAlt}
+              loading="lazy"
+              decoding="async"
+              referrerpolicy="no-referrer"
+              class="h-full w-full object-cover"
+            />
+          ) : (
+            <div class="flex h-full w-full items-center justify-center p-6 text-center text-sm text-gray-400">{workTitle}</div>
+          )}
+          <div class="absolute inset-0 bg-gradient-to-t from-surface-0 via-transparent to-transparent"></div>
+          <div class="absolute bottom-0 right-0 left-0 p-4">
+            <div class="mb-3 flex flex-wrap gap-2">
+              <span class="badge-hd">{title.quality || 'HD'}</span>
+              {title.year && <span class="chip-surface">{title.year}</span>}
+            </div>
+            {hasPlayableEpisode && (
+              <a href={watchHref} class="btn-primary w-full justify-center px-5 py-3 text-sm">
+                مشاهدة العمل
+              </a>
+            )}
+          </div>
+        </div>
+        <div class="space-y-2 p-5 text-sm">
+          <div class="flex justify-between gap-4 border-b border-white/[0.04] py-2">
+            <span class="text-gray-400">النوع</span>
+            <span class="font-semibold text-white">{title.category_label}</span>
+          </div>
+          <div class="flex justify-between gap-4 border-b border-white/[0.04] py-2">
+            <span class="text-gray-400">الجودة</span>
+            <span class="font-semibold text-white">{title.quality || 'HD'}</span>
+          </div>
+          <div class="flex justify-between gap-4 py-2">
+            <span class="text-gray-400">اللغة</span>
+            <span class="font-semibold text-white">{cleanBrand(title.language) || 'مترجم'}</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+
+
+  {similar.length > 0 && (
+    <div class="mt-14 md:mt-20">
+      <SectionHeader title={similarTitle} subtitle={similarSubtitle} eyebrow="RELATED" href={similarHref} />
       <Grid items={similar} />
-    </section>
-
-    <section class="tab-panel hidden" data-panel="تعليقات">
-      <div class="glass-panel p-8 text-center"><h2 class="text-2xl font-black text-[#F9FAFB]">التعليقات</h2><p class="mt-3 text-[#9CA3AF]">سيتم تفعيل منطقة التعليقات قريباً.</p></div>
-    </section>
-  </section>
-</article>
-
-<div id="cinema-plus-popup" class="cinema-plus-popup" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="cinema-plus-popup-title" data-source-path={cinemaProSourcePath} dir="rtl">
-  <article class="cinema-plus-popup__card" aria-describedby="cinema-plus-popup-description">
-    <header class="cinema-plus-popup__header"><h2 id="cinema-plus-popup-title">شاهد على سينما برو</h2><button class="cinema-plus-popup__close" type="button" aria-label="إغلاق النافذة" data-cinema-plus-close>×</button></header>
-    <div class="cinema-plus-popup__body"><h3 class="cinema-plus-popup__movie-name">{workTitle}</h3><p id="cinema-plus-popup-description" class="cinema-plus-popup__subtitle">متاح بجودة 1080p مترجم للعربية</p><a class="cinema-plus-popup__primary" href={cinemanaPlusUrl} target="_blank" rel="noopener noreferrer" data-cinema-plus-link>مشاهدة على سينما برو</a><button class="cinema-plus-popup__secondary" type="button" data-cinema-plus-close>تخطي — الاستمرار في هذا الموقع</button></div>
-  </article>
-</div>
-
-<script is:inline>
-  (() => {
-    document.querySelectorAll('.work-tabs .tab').forEach((btn) => btn.addEventListener('click', () => {
-      const key = btn.getAttribute('data-tab');
-      document.querySelectorAll('.work-tabs .tab').forEach((b) => b.classList.toggle('tab-active', b === btn));
-      document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.getAttribute('data-panel') !== key));
-    }));
-    const seasonSelect = document.getElementById('season-select');
-    seasonSelect?.addEventListener('change', () => {
-      document.querySelectorAll('.episode-tile').forEach((tile) => tile.classList.toggle('hidden', tile.getAttribute('data-season') !== seasonSelect.value));
-    });
-    const popup = document.getElementById('cinema-plus-popup');
-    if (!popup) return;
-    const closeButtons = popup.querySelectorAll('[data-cinema-plus-close]');
-    const timer = window.setTimeout(() => { popup.classList.add('is-visible'); popup.setAttribute('aria-hidden','false'); }, 3000);
-    closeButtons.forEach((b) => b.addEventListener('click', () => { clearTimeout(timer); popup.classList.remove('is-visible'); popup.setAttribute('aria-hidden','true'); }));
-  })();
-</script>
-
-<style>
-  .work-hero { position: relative; min-height: 70vh; overflow: hidden; display: flex; align-items: center; background: #0B0F19; }
-  .work-backdrop { position: absolute; inset: 0; width: 100vw; height: 70vh; object-fit: cover; filter: blur(2px) brightness(.3); transform: scale(1.04); }
-  .work-backdrop-overlay { position: absolute; inset: 0; background: linear-gradient(90deg, #0B0F19 0%, rgba(11,15,25,.82) 45%, rgba(11,15,25,.45) 100%); }
-  .work-hero__inner { position: relative; z-index: 2; display: grid; grid-template-columns: 330px 1fr; gap: 46px; align-items: center; padding-top: 46px; padding-bottom: 46px; }
-  .work-poster-wrap { order: 1; justify-self: start; }
-  .work-poster { width: min(310px, 80vw); aspect-ratio: 2/3; object-fit: cover; border-radius: 18px; border: 1px solid rgba(255,255,255,.07); transform: rotate(-2deg); box-shadow: 0 36px 80px rgba(0,0,0,.65); background: #111827; display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .work-copy { order: 2; }
-  .work-copy h1 { margin-top: 16px; color: #F9FAFB; font-size: clamp(34px, 5vw, 58px); font-weight: 900; line-height: 1.15; }
-  .work-copy p { margin-top: 18px; color: #9CA3AF; line-height: 2; max-width: 760px; }
-  .work-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-top: 24px; max-width: 760px; }
-  .work-stats div { background: rgba(17,24,39,.82); border: 1px solid rgba(255,255,255,.07); border-radius: 14px; padding: 14px; }
-  .work-stats strong { display: block; color: #F9FAFB; font-size: 20px; font-weight: 900; } .work-stats span { color: #9CA3AF; font-size: 12px; font-weight: 800; }
-  .rating-progress { height: 10px; max-width: 760px; border-radius: 999px; background: #111827; border: 1px solid rgba(255,255,255,.07); overflow: hidden; margin-top: 18px; }
-  .rating-progress span { display: block; height: 100%; background: linear-gradient(90deg,#2563EB,#7C3AED); }
-  .work-watch { margin-top: 24px; }
-  .work-body { padding-top: 32px; padding-bottom: 70px; }
-  .work-tabs { display: flex; gap: 6px; overflow-x: auto; border-bottom: 1px solid rgba(255,255,255,.07); margin-bottom: 28px; }
-  .work-info-grid { display: grid; grid-template-columns: 1.35fr .85fr; gap: 18px; margin-bottom: 24px; }
-  .episodes-toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; } .episodes-toolbar label { color: #F9FAFB; font-weight: 900; } .episodes-toolbar select { background: #111827; color: #F9FAFB; border: 1px solid rgba(255,255,255,.07); border-radius: 999px; padding: 12px 18px; }
-  .episodes-grid-new { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; }
-  .episode-tile { overflow: hidden; border-radius: 14px; background: #111827; border: 1px solid rgba(255,255,255,.07); transition: transform .25s, background .25s; } .episode-tile:hover { transform: translateY(-6px); background: #1a2235; }
-  .episode-thumb { position: relative; aspect-ratio: 16/9; background: #0B0F19; } .episode-thumb img { width: 100%; height: 100%; object-fit: cover; filter: brightness(.62); } .episode-thumb span { position: absolute; right: 12px; bottom: 8px; color: #F9FAFB; font-size: 38px; font-weight: 900; opacity: .8; }
-  .episode-meta { padding: 12px; display: grid; gap: 5px; } .episode-meta strong { color: #F9FAFB; font-weight: 900; } .episode-meta small { color: #9CA3AF; font-weight: 700; }
-  @media (max-width: 900px) { .work-hero__inner, .work-info-grid { grid-template-columns: 1fr; } .work-poster-wrap { justify-self: center; } .work-stats, .episodes-grid-new { grid-template-columns: repeat(2,1fr); } }
-  @media (max-width: 520px) { .work-stats, .episodes-grid-new { grid-template-columns: 1fr; } }
-</style>
+    </div>
+  )}
+</section>
