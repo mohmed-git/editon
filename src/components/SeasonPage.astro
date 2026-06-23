@@ -125,7 +125,48 @@ const jsonLd = {
       </div>
     </div>
 
-    <!-- قسم تفاصيل الحلقة المختارة — يظهر عند وجود ?e= في URL -->
+    <!-- قائمة الحلقات الكاملة — مُولَّدة وقت البناء (Server-Side) لتكون مرئية لمحركات البحث -->
+    <!-- هذا يضمن أن كل تفاصيل الحلقات (العدد، السيرفرات) تظهر في الـ HTML الخام، -->
+    <!-- بدل الاعتماد فقط على JavaScript بعد التحميل عبر query string ?e= -->
+    {allEpisodesData.length > 0 && (
+      <div class="mt-6 glass-panel p-5 md:p-6">
+        <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-white">
+          <span class="flex h-6 w-1 rounded-full bg-gradient-to-b from-brand-400 to-gold-400"></span>
+          <span>حلقات الموسم {currentSeason}</span>
+        </h2>
+        <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {allEpisodesData.map((ep) => {
+            const epServerCount = ep.servers?.length || 0;
+            const epHasServers = epServerCount > 0;
+            const epHref = epHasServers
+              ? getGatewayEpisodeRouteForTitle(title, currentSeason, ep.episode)
+              : undefined;
+            return (
+              <li class="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                <div class="flex flex-col">
+                  <span class="font-semibold text-white">
+                    {typeLabel} {workTitle} الموسم {currentSeason} الحلقة {ep.episode} مترجمة
+                  </span>
+                  {ep.title && <span class="text-sm text-gray-400">{ep.title}</span>}
+                  {ep.overview && <span class="mt-1 text-xs leading-6 text-gray-500">{ep.overview}</span>}
+                  <span class="text-xs text-gray-500">{epServerCount} سيرفر</span>
+                </div>
+                {epHasServers ? (
+                  <a href={epHref} class="btn-primary shrink-0 px-4 py-2 text-sm">
+                    مشاهدة
+                  </a>
+                ) : (
+                  <span class="shrink-0 text-xs text-gray-500">قريباً</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    )}
+
+    <!-- قسم تفاصيل الحلقة المختارة — تحسين UX فقط عند وجود ?e= في URL -->
+    <!-- المحتوى الأساسي أعلاه مبني وقت السيرفر بالفعل، هذا فقط للتنقل السريع -->
     <div id="episode-detail" class="mt-6 glass-panel p-5 md:p-6" style="display:none">
       <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-white">
         <span class="flex h-6 w-1 rounded-full bg-gradient-to-b from-brand-400 to-gold-400"></span>
