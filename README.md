@@ -1,5 +1,34 @@
 # سينما بلس · CinemaPlus
 
+## 🆕 ترقية معمارية: Astro Static → Astro Hybrid (SSR لصفحات الحلقات)
+
+تم تحويل المشروع من **Static كامل** إلى **Hybrid** على Cloudflare Pages:
+
+- **الافتراضي: Static** — كل الصفحات تبقى مُولّدة مسبقاً (الرئيسية، القوائم `/x/*`، صفحات الأفلام `/f/*`، صفحات المسلسلات/الأنمي `/d|n/[slug]`، صفحات المواسم `/d|n/[slug]/c/[season]`، البوابة `/g/*`). السبب: عددها محدود (~9 آلاف) ونادرة التغيّر، فالـ static يعطي أقصى سرعة وأفضل SEO.
+- **استثناء: صفحات الحلقات SSR** — `/d/[slug]/c/[season]/e/[episode]` و `/n/...` أصبحت **on-demand SSR** (`export const prerender = false`). السبب: عددها **48,174 حلقة**، ولو بُنيت static لتجاوزت حد **20 ألف ملف** في Cloudflare Pages (وهو سبب حذفها سابقاً في `fix-episode-pages.patch`). الآن تُولَّد عند الطلب وتُكاش على الـ edge، فلا ملفات إضافية في `dist`.
+
+### كيف تُحمّل بيانات الحلقات في SSR دون تضخيم الـ Worker
+- `all.json` (86MB) **لا يُحزَّم** داخل Worker الـ SSR (كان يسبب OOM ويتجاوز حد حجم الـ Worker).
+- سكربت `scripts/build-episode-shards.mjs` (streaming، بلا اعتماديات) يقسّم العناوين الحلقية إلى **2,422 shard** صغير تحت `public/_data/episodes/<base64url(slug)>.json` كأصول static، إضافةً إلى:
+  - `episode-manifest.json` (slug → اسم الملف) — صغير ويُحزَّم.
+  - `episode-routes.json` (~270KB) — slug/category/أرقام الحلقات، لتوليد الـ sitemap.
+- عند الطلب: `src/lib/episodeData.ts` يجلب **shard واحد فقط** عبر `fetch('/_data/episodes/...')` من نفس النشر.
+
+### SEO وكاش صفحة الحلقة
+- `title` + `description` + `canonical` + Open Graph (`og:type=video.episode`) + Twitter + **JSON-LD `TVEpisode`** — كلها مُولّدة من الخادم (HTML كامل قابل للفهرسة).
+- `Cache-Control: public, max-age=0, s-maxage=3600, stale-while-revalidate=86400` (كاش edge لساعة + تقديم نسخة قديمة لمدة يوم أثناء التحديث).
+- روابط غير الموجود (slug/حلقة خاطئة) ترجع **404 حقيقي** (لا soft-404).
+
+### Sitemap للحلقات
+- `/episodes-sitemap.xml` = فهرس sitemap (SSR) يشير إلى أجزاء `/episodes-sitemap/{n}.xml` (كل جزء ≤ 10,000 رابط).
+- مربوط بالفهرس الرئيسي عبر `customPages` في `astro.config.mjs`، فتبقى الحلقات مشمولة في الـ sitemap رغم كونها SSR.
+
+### الروابط الداخلية وصفحة الموسم
+- `getNavigableEpisodeRouteForTitle` رجع ليشير إلى صفحة الحلقة المستقلة `/.../c/{season}/e/{episode}` بدل `?e=` السابق.
+- أُزيل من `SeasonPage.astro` حقن تفاصيل الحلقة عبر JavaScript (`?e=`)؛ وأُلغيت قواعد `_redirects`/`robots` التي كانت تحوّل/تمنع صفحات الحلقات.
+
+---
+
 ## نظرة عامة على المشروع
 - **الاسم**: سينما بلس (CinemaPlus)
 - **الهدف**: منصة عربية لمشاهدة الأفلام والمسلسلات والأنمي مترجم اون لاين بجودة عالية HD/4K، بتصميم سينمائي حديث ونظام ثيمات متعدد.

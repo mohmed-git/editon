@@ -35,8 +35,6 @@ const { season } = findEpisode(title, seasonNumber, 1);
 const currentSeason = season?.season ?? seasonNumber;
 const firstEpisode = season?.episodes[0] ?? null;
 const canWatchFirstEpisode = (firstEpisode?.servers?.length || 0) > 0;
-// Pass episode list to client for dynamic episode detail display via ?e= query string
-const allEpisodesData = season?.episodes ?? [];
 const pageHeading = `${typeLabel} ${workTitle} الموسم ${currentSeason}`;
 const pageTitle = `${pageHeading} مترجم اون لاين — ${SITE.name}`;
 const description = `تابع ${typeLabel} ${workTitle} الموسم ${currentSeason} مترجم مع قائمة الحلقات كاملة وروابط المشاهدة بجودة عالية على ${SITE.name}.`;
@@ -125,100 +123,11 @@ const jsonLd = {
       </div>
     </div>
 
-    <!-- قائمة الحلقات الكاملة — مُولَّدة وقت البناء (Server-Side) لتكون مرئية لمحركات البحث -->
-    <!-- هذا يضمن أن كل تفاصيل الحلقات (العدد، السيرفرات) تظهر في الـ HTML الخام، -->
-    <!-- بدل الاعتماد فقط على JavaScript بعد التحميل عبر query string ?e= -->
-    {allEpisodesData.length > 0 && (
-      <div class="mt-6 glass-panel p-5 md:p-6">
-        <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-white">
-          <span class="flex h-6 w-1 rounded-full bg-gradient-to-b from-brand-400 to-gold-400"></span>
-          <span>حلقات الموسم {currentSeason}</span>
-        </h2>
-        <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {allEpisodesData.map((ep) => {
-            const epServerCount = ep.servers?.length || 0;
-            const epHasServers = epServerCount > 0;
-            const epHref = epHasServers
-              ? getGatewayEpisodeRouteForTitle(title, currentSeason, ep.episode)
-              : undefined;
-            return (
-              <li class="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-                <div class="flex flex-col">
-                  <span class="font-semibold text-white">
-                    {typeLabel} {workTitle} الموسم {currentSeason} الحلقة {ep.episode} مترجمة
-                  </span>
-                  {ep.title && <span class="text-sm text-gray-400">{ep.title}</span>}
-                  {ep.overview && <span class="mt-1 text-xs leading-6 text-gray-500">{ep.overview}</span>}
-                  <span class="text-xs text-gray-500">{epServerCount} سيرفر</span>
-                </div>
-                {epHasServers ? (
-                  <a href={epHref} class="btn-primary shrink-0 px-4 py-2 text-sm">
-                    مشاهدة
-                  </a>
-                ) : (
-                  <span class="shrink-0 text-xs text-gray-500">قريباً</span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    )}
-
-    <!-- قسم تفاصيل الحلقة المختارة — تحسين UX فقط عند وجود ?e= في URL -->
-    <!-- المحتوى الأساسي أعلاه مبني وقت السيرفر بالفعل، هذا فقط للتنقل السريع -->
-    <div id="episode-detail" class="mt-6 glass-panel p-5 md:p-6" style="display:none">
-      <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-white">
-        <span class="flex h-6 w-1 rounded-full bg-gradient-to-b from-brand-400 to-gold-400"></span>
-        <span id="episode-detail-title">تفاصيل الحلقة</span>
-      </h2>
-      <div class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-        <div class="flex justify-between gap-4 border-b border-white/[0.04] py-2">
-          <span class="text-gray-400">رقم الحلقة</span>
-          <span class="font-semibold text-white" id="ep-number">—</span>
-        </div>
-        <div class="flex justify-between gap-4 border-b border-white/[0.04] py-2">
-          <span class="text-gray-400">السيرفرات</span>
-          <span class="font-semibold text-white" id="ep-servers">—</span>
-        </div>
-      </div>
-      <p id="ep-overview" class="mt-4 text-sm leading-8 text-gray-300" style="display:none"></p>
-      <div class="mt-5 flex flex-wrap gap-3" id="ep-actions"></div>
-    </div>
-
-    <script define:vars={{ allEpisodesData, titleSlug: title.slug, currentSeason }}>
-      (function () {
-        var params = new URLSearchParams(window.location.search);
-        var epNum = parseInt(params.get('e') || '0', 10);
-        if (!epNum) return;
-        var ep = allEpisodesData.find(function(e) { return e.episode === epNum; });
-        if (!ep) return;
-        var detail = document.getElementById('episode-detail');
-        if (detail) detail.style.display = '';
-        function setEl(id, text) { var el = document.getElementById(id); if (el) el.textContent = text; }
-        setEl('episode-detail-title', 'الموسم ' + currentSeason + ' — الحلقة ' + ep.episode + ': ' + ep.title);
-        setEl('ep-number', 'الحلقة ' + ep.episode);
-        setEl('ep-servers', (ep.servers ? ep.servers.length : 0) + ' سيرفر');
-        if (ep.overview) { var ov = document.getElementById('ep-overview'); if (ov) { ov.textContent = ep.overview; ov.style.display = ''; } }
-        var actions = document.getElementById('ep-actions');
-        if (actions && ep.servers && ep.servers.length > 0) {
-          var GATE_SALT = 'cp7q';
-          function toBase64Url(bytes) {
-            var bin = ''; for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-            return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-          }
-          function scramble(bytes) {
-            var out = new Uint8Array(bytes.length);
-            for (var i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ GATE_SALT.charCodeAt(i % GATE_SALT.length) ^ (i & 0xff);
-            return out;
-          }
-          var token = toBase64Url(scramble(new TextEncoder().encode(titleSlug)));
-          var watchHref = '/g/' + token + '?s=' + currentSeason + '&e=' + ep.episode;
-          actions.innerHTML = '<a href="' + watchHref + '" class="btn-primary w-full justify-center px-7 py-3.5 text-base sm:w-auto">مشاهدة الحلقة الآن</a>';
-        }
-        if (detail) detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      })();
-    </script>
+    <!--
+      ملاحظة: لم نعد بحاجة لحقن تفاصيل الحلقة عبر ?e= في صفحة الموسم؛
+      أصبح لكل حلقة صفحة SSR مستقلة قابلة للفهرسة (/.../c/{season}/e/{episode}).
+      روابط الحلقات في EpisodicSeasonsList تشير الآن مباشرةً لتلك الصفحات.
+    -->
 
     <div class="mt-7 grid grid-cols-1 gap-7 lg:grid-cols-12">
       <div class="space-y-6 lg:col-span-8">

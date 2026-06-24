@@ -94,9 +94,10 @@ export function getNavigableEpisodeRouteForTitle(
   season: number,
   episode: number
 ): string {
-  // Episode pages are removed — always link to the season page with ?e= query string.
-  // The season page reads ?e= client-side and shows episode details dynamically.
-  return `${getSeasonRouteForTitle(title, kind, season)}?e=${episode}`;
+  // Episode pages are back as standalone SSR routes (/.../c/{season}/e/{episode}).
+  // Internal links point straight at them so crawlers get a real, indexable URL
+  // per episode instead of the old client-side ?e= query-string variant.
+  return getEpisodeRouteForTitle(title, kind, season, episode);
 }
 
 export function getFlatEpisodes(title: Title): EpisodeRef[] {

@@ -3,10 +3,11 @@ module.exports = {
     {
       name: 'cinemaplus',
       script: 'npx',
-      // Serve the static build from dist/ — extremely low memory footprint.
-      // Directory-format Astro output means each route is its own index.html,
-      // so a plain static file server resolves /x/f/ -> dist/x/f/index.html.
-      args: 'serve dist -l tcp://0.0.0.0:3000 --no-clipboard',
+      // Hybrid build: static pages are served straight from dist/, while the
+      // SSR routes (episode pages + episode sitemaps) run through the Cloudflare
+      // Pages dev runtime. `wrangler pages dev` reads dist/_routes.json to decide
+      // which paths hit the Worker vs. the static asset server.
+      args: 'wrangler pages dev dist --ip 0.0.0.0 --port 3000',
       cwd: '/home/user/webapp',
       env: {
         NODE_ENV: 'production',

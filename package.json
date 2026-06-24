@@ -4,13 +4,16 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "ASTRO_TELEMETRY_DISABLED=1 astro build",
-    "dev": "astro dev --host 0.0.0.0",
-    "preview": "astro preview --host 0.0.0.0 --port 3000",
+    "prebuild": "node scripts/build-episode-shards.mjs",
+    "build": "ASTRO_TELEMETRY_DISABLED=1 node scripts/build-episode-shards.mjs && astro build",
+    "dev": "node scripts/build-episode-shards.mjs && astro dev --host 0.0.0.0",
+    "preview": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
     "astro": "astro",
-    "data": "node scripts/build-data.mjs"
+    "data": "node scripts/build-data.mjs",
+    "data:episodes": "node scripts/build-episode-shards.mjs"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^12.6.13",
     "@astrojs/sitemap": "^3.2.1",
     "@astrojs/tailwind": "^5.1.4",
     "astro": "^5.1.1",

@@ -1,8 +1,7 @@
-# Cloudflare Pages redirects for old indexed episode pages.
-# Episodes were merged into season pages, so legacy episode URLs should not 404.
-
-/d/:slug/c/:season/e/:episode /d/:slug/c/:season 301
-/d/:slug/c/:season/e/:episode/ /d/:slug/c/:season 301
-
-/n/:slug/c/:season/e/:episode /n/:slug/c/:season 301
-/n/:slug/c/:season/e/:episode/ /n/:slug/c/:season 301
+# Cloudflare Pages redirects.
+#
+# Episode pages are once again standalone (now served via SSR), so the old
+# 301s that folded /.../e/:episode back into the season page have been REMOVED
+# — they would otherwise hijack every valid episode URL.
+#
+# (Intentionally empty — add future redirects below.)
