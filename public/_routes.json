@@ -1,0 +1,3 @@
+let routesExists = false;
+try { await stat(outDir + '/_routes.json'); routesExists = true } catch {}
+if (!routesExists) { /* auto-generate */ }
