@@ -30,6 +30,13 @@ export default defineConfig({
   adapter: cloudflare({
     imageService: 'compile',
   }),
+  // The project doesn't use Astro.session anywhere. Without this, the
+  // Cloudflare adapter auto-enables sessions backed by a "SESSION" KV
+  // binding that doesn't exist in wrangler.jsonc, which breaks the
+  // Functions-publish step at deploy time ("Failed to publish assets").
+  session: {
+    driver: 'memory',
+  },
   trailingSlash: 'ignore',
   build: {
     format: 'directory',
