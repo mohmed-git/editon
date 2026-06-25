@@ -5,7 +5,7 @@ import TitleDetailContent from '../../components/TitleDetailContent.astro';
 import { getTitlesByCategory, getSimilarTitles, toIndexEntry } from '../../lib/titles';
 import { SITE } from '../../lib/site';
 import type { Title } from '../../lib/types';
-import { gatewayRoute, listingRoute } from '../../lib/routes';
+import { gatewayRoute, listingRoute, safeRouteSlug } from '../../lib/routes';
 import {
   buildJsonLdDescription,
   buildMetaDescription,
@@ -44,7 +44,7 @@ export async function getStaticPaths() {
   };
   const movies = getTitlesByCategory('movie');
   return movies.map((t, index) => ({
-    params: { slug: t.slug },
+    params: { slug: safeRouteSlug(t.slug) },
     props: { title: t, patternId: moviePatternOverrides[t.slug] ?? Math.floor(index / 10) % 10 },
   }));
 }

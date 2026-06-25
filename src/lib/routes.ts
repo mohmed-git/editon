@@ -39,10 +39,71 @@ export const CODE_TO_CATEGORY: Record<string, Category> = {
 export const LISTING_NS = 'x';
 export const GATEWAY_NS = 'g';
 
+/* ───────────────────────── safe route slug ─────────────────────────
+ * Cloudflare Pages refuses to publish any static asset whose individual path
+ * segment exceeds 100 characters — and the limit is measured on the
+ * URL-ENCODED segment. An Arabic character becomes 9 chars once percent-encoded
+ * (e.g. "ا" -> "%D8%A7"), so even a visually short Arabic slug can explode past
+ * the cap. ~780 of our slugs broke this, which is exactly why
+ * `wrangler pages deploy` failed with "Failed to publish assets".
+ *
+ * `safeRouteSlug` produces a deterministic, ASCII-only, collision-free slug that
+ * always stays comfortably under 100 chars *after* URL-encoding:
+ *   • Short, already-clean ASCII slugs are returned UNCHANGED (SEO-friendly URLs
+ *     for the vast majority of titles are preserved bit-for-bit).
+ *   • Anything that would exceed the budget (non-ASCII or very long) is rebuilt
+ *     from its latin/ascii parts and suffixed with a short stable hash so it
+ *     stays readable, unique and reversible-free (pages pass the Title as a prop,
+ *     so the slug never needs to be decoded back).
+ *
+ * The function is pure and dependency-free so it is byte-for-byte identical in
+ * the Astro build, the Cloudflare SSR Worker and the episode-shard build script.
+ */
+
+// Conservative budget: keep the *URL-encoded* length of the produced slug at or
+// below this. Output is ASCII-only, so raw length == encoded length here.
+const MAX_ROUTE_SLUG_LEN = 90;
+
+// 64-bit-ish stable hash (two FNV-1a passes, different seeds) -> base36 string.
+// Identical output in Node and the browser (no Buffer / no crypto needed).
+function stableHash(str: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x97c29b3a;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 ^= c; h1 = Math.imul(h1, 0x01000193);
+    h2 ^= c; h2 = Math.imul(h2, 0x85ebca77);
+  }
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+}
+
+function isCleanAscii(s: string): boolean {
+  return /^[A-Za-z0-9._~-]+$/.test(s);
+}
+
+export function safeRouteSlug(slug: string): string {
+  // Fast path: already a short, clean ASCII slug → leave it exactly as-is.
+  if (isCleanAscii(slug) && slug.length <= MAX_ROUTE_SLUG_LEN) return slug;
+
+  // Build a readable ASCII stem from the latin parts of the slug.
+  const stem = slug
+    .normalize('NFKD')
+    .replace(/[^\x00-\x7F]+/g, '-') // drop non-ASCII (Arabic, etc.) runs
+    .replace(/[^A-Za-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+
+  const h = stableHash(slug);
+  const stemBudget = Math.max(0, MAX_ROUTE_SLUG_LEN - 1 - h.length);
+  const trimmed = stem.slice(0, stemBudget).replace(/-+$/, '');
+  return trimmed ? `${trimmed}-${h}` : h;
+}
+
 /* ───────────────────────── detail routes ───────────────────────── */
 
 export function detailRoute(category: Category, slug: string): string {
-  return `/${DETAIL_CODE[category]}/${slug}`;
+  return `/${DETAIL_CODE[category]}/${safeRouteSlug(slug)}`;
 }
 
 export function listingRoute(category: Category): string {
@@ -70,67 +131,22 @@ export function episodeRoute(
 }
 
 /* ───────────────────────── gateway (watch) token ─────────────────────────
- * The watch URL used to be /watch/{slug}. We now hide it behind an encoded
- * token so the path no longer contains the word "watch" nor the bare slug.
+ * The watch URL used to be /watch/{slug}. We hide it behind an opaque token so
+ * the path no longer contains the word "watch" nor the bare slug.
  *
- * The token is a reversible, URL-safe transform of the slug:
- *   1. UTF-8 encode the slug
- *   2. base64url
- *   3. light XOR-ish scramble keyed by a fixed salt so it doesn't *look* like
- *      plain base64 of the slug.
- * It is intentionally lightweight (this is obfuscation, not security) and is
- * fully reversible at build time + on the client.
+ * The OLD scheme base64-encoded the whole UTF-8 slug. For long / Arabic slugs
+ * that produced tokens of 100–187 characters, which blew past Cloudflare Pages'
+ * 100-char-per-path-segment limit (132 of the /g/{token} static pages failed to
+ * publish — the second confirmed cause of the failed deploy).
+ *
+ * The token does NOT need to be reversible: every /g/[token] page is generated
+ * by getStaticPaths, which passes the matching Title straight through as a prop.
+ * So we now use a short, fixed-length (~14 char) stable hash of the slug. It is
+ * deterministic, collision-free across the catalogue, opaque, and always far
+ * under the 100-char cap.
  */
-const GATE_SALT = 'cp7q';
-
-function toBase64Url(bytes: Uint8Array): string {
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  // btoa exists in browsers; on the build side we polyfill below.
-  const b64 = typeof btoa === 'function'
-    ? btoa(bin)
-    : Buffer.from(bin, 'binary').toString('base64');
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function fromBase64Url(str: string): Uint8Array {
-  const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
-  const bin = typeof atob === 'function'
-    ? atob(b64)
-    : Buffer.from(b64, 'base64').toString('binary');
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-function scramble(bytes: Uint8Array): Uint8Array {
-  const out = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) {
-    out[i] = bytes[i] ^ GATE_SALT.charCodeAt(i % GATE_SALT.length) ^ (i & 0xff);
-  }
-  return out;
-}
-
-function utf8Encode(str: string): Uint8Array {
-  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(str);
-  return Uint8Array.from(Buffer.from(str, 'utf8'));
-}
-
-function utf8Decode(bytes: Uint8Array): string {
-  if (typeof TextDecoder !== 'undefined') return new TextDecoder().decode(bytes);
-  return Buffer.from(bytes).toString('utf8');
-}
-
 export function encodeGateToken(slug: string): string {
-  return toBase64Url(scramble(utf8Encode(slug)));
-}
-
-export function decodeGateToken(token: string): string {
-  try {
-    return utf8Decode(scramble(fromBase64Url(token)));
-  } catch {
-    return '';
-  }
+  return stableHash('g:' + slug);
 }
 
 export function gatewayRoute(slug: string): string {

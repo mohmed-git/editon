@@ -1,5 +1,5 @@
 import type { Episode, Season, Title } from './types';
-import { detailRoute, seasonRoute, episodeRoute, gatewayRoute } from './routes';
+import { detailRoute, seasonRoute, episodeRoute, gatewayRoute, safeRouteSlug } from './routes';
 
 export type EpisodicKind = 'series' | 'anime';
 
@@ -36,8 +36,10 @@ export function getSeasonRoute(kind: EpisodicKind, slug: string, season: number)
 }
 
 export function getRouteSlug(title: Title, _kind: EpisodicKind): string {
-  // Slugs stay the original slug; the title.url is already opaque-encoded.
-  return title.slug;
+  // The route segment must stay <= 100 chars once URL-encoded (Cloudflare Pages
+  // asset limit). safeRouteSlug returns short ASCII slugs unchanged and rewrites
+  // long / non-ASCII ones to a readable, hash-suffixed ASCII form.
+  return safeRouteSlug(title.slug);
 }
 
 export function getTitleRoute(title: Title, kind: EpisodicKind): string {

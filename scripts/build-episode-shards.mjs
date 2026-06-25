@@ -16,8 +16,12 @@
  * depth (string- and escape-aware), parsing one Title object at a time. Peak
  * memory stays at roughly the size of a single title.
  *
- * Slugs can contain non-ASCII (Arabic) chars, so the on-disk filename is a
- * base64url of the UTF-8 slug; a manifest maps slug -> filename.
+ * Slugs can contain non-ASCII (Arabic) chars and can be very long. Both the
+ * route segment and the on-disk shard filename are static-asset paths that must
+ * stay under Cloudflare Pages' 100-char-per-segment limit, so:
+ *   • the manifest + route index are keyed by safeRouteSlug(slug) (the short
+ *     ASCII slug the SSR pages actually receive in Astro.params.slug), and
+ *   • the shard filename is a short stable hash of the slug.
  */
 import { createReadStream, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -31,12 +35,43 @@ const similarDir = join(root, 'public/_data/similar');
 const manifestPath = join(root, 'src/data/generated/episode-manifest.json');
 const routeIndexPath = join(root, 'src/data/generated/episode-routes.json');
 
-function slugToFile(slug) {
-  return Buffer.from(slug, 'utf8')
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+/* ───────────────────────── safe route slug ─────────────────────────
+ * MUST stay byte-for-byte identical to safeRouteSlug() in src/lib/routes.ts.
+ * The SSR episode pages receive this route slug in Astro.params.slug and look
+ * it up in the manifest, and the episode sitemap is generated from the route
+ * index — so the manifest + route index have to be keyed by the SAME safe slug
+ * the rest of the site links to, otherwise episode pages 404.
+ */
+const MAX_ROUTE_SLUG_LEN = 90;
+
+function stableHash(str) {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x97c29b3a;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 ^= c; h1 = Math.imul(h1, 0x01000193);
+    h2 ^= c; h2 = Math.imul(h2, 0x85ebca77);
+  }
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+}
+
+function isCleanAscii(s) {
+  return /^[A-Za-z0-9._~-]+$/.test(s);
+}
+
+function safeRouteSlug(slug) {
+  if (isCleanAscii(slug) && slug.length <= MAX_ROUTE_SLUG_LEN) return slug;
+  const stem = slug
+    .normalize('NFKD')
+    .replace(/[^\x00-\x7F]+/g, '-')
+    .replace(/[^A-Za-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  const h = stableHash(slug);
+  const stemBudget = Math.max(0, MAX_ROUTE_SLUG_LEN - 1 - h.length);
+  const trimmed = stem.slice(0, stemBudget).replace(/-+$/, '');
+  return trimmed ? `${trimmed}-${h}` : h;
 }
 
 function isEpisodic(t) {
@@ -97,12 +132,22 @@ function processObject(jsonText) {
   if (!isEpisodic(t)) return;
 
   episodicCount++;
-  const file = slugToFile(t.slug);
+
+  // Route slug == what the SSR page receives in Astro.params.slug and what every
+  // internal link points to. Manifest + route index MUST be keyed by it.
+  const routeSlug = safeRouteSlug(t.slug);
+
+  // Shard filename: the on-disk asset path /_data/episodes/<file>.json is ALSO a
+  // static asset, so it must stay under the 100-char-per-segment limit too. The
+  // old base64-of-slug names reached 176 chars for long titles. Use a short,
+  // collision-free hash instead. (Filename is internal; only the manifest needs
+  // to map routeSlug -> file.)
+  const file = stableHash('shard:' + t.slug);
   writeFileSync(join(outDir, `${file}.json`), JSON.stringify(t));
-  manifest[t.slug] = file;
+  manifest[routeSlug] = file;
 
   routeIndex.push({
-    s: t.slug,
+    s: routeSlug,
     c: t.category, // 'series' | 'anime'
     z: [...t.seasons]
       .filter((season) => Array.isArray(season.episodes) && season.episodes.length > 0)

@@ -1,10 +1,13 @@
 ---
 /**
  * Universal gateway (streaming) page — one static page per work, reached via
- * an opaque encoded token instead of a readable /watch/ path.
+ * an opaque token instead of a readable /watch/ path.
  *   /g/{token}            -> first episode, first server
  *   /g/{token}?s=1&e=5    -> season 1 episode 5
- * The token decodes back to the work slug (see routes.ts encodeGateToken).
+ * The token is a short, fixed-length stable hash of the slug (see
+ * routes.ts encodeGateToken). It is NOT reversible and does not need to be:
+ * getStaticPaths pairs each token with its Title and passes it through as a
+ * prop, so the page already has all the data it needs.
  */
 import Base from '../../layouts/Base.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
