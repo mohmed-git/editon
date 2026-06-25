@@ -52,12 +52,13 @@ if (
   return new Response('Not found', { status: 404 });
 }
 
-const similar = getSimilarTitlesLite(
+const similar = await getSimilarTitlesLite(
   title.slug,
   title.category,
   title.genre,
   title.country,
   title.year,
+  Astro.url,
   12
 );
 

@@ -14,6 +14,11 @@
   - `episode-routes.json` (~270KB) — slug/category/أرقام الحلقات، لتوليد الـ sitemap.
 - عند الطلب: `src/lib/episodeData.ts` يجلب **shard واحد فقط** عبر `fetch('/_data/episodes/...')` من نفس النشر.
 
+#### 🛠️ إصلاح فشل الرفع على Cloudflare (Failed to publish assets)
+- **المشكلة**: كان `src/lib/similarLite.ts` يستورد `index.json` (~5MB) **بشكل ثابت (static import)**، فتم تحزيمه داخل Worker الـ SSR وأنتج chunk بحجم **5,609 KiB** وإجمالي Worker **6,670 KiB** — وهو ما تجاوز حدود Cloudflare وأدى إلى `Failed: an internal error occurred` / `Failed to publish assets` رغم نجاح البناء.
+- **الحل**: نفس نمط `episodeData.ts` — سكربت `build-episode-shards.mjs` صار يولّد فهرس "العناوين المشابهة" المُبسّط مقسّماً **حسب التصنيف** كأصول static: `public/_data/similar/{movie|series|anime}.json` (بحقول البطاقة فقط). و `similarLite.ts` يجلب ملف تصنيف العنوان الحالي فقط عبر `fetch()` وقت الطلب بدل تحزيم الفهرس كاملاً.
+- **النتيجة**: chunk الـ `similarLite` هبط من **5,609 KiB → ~20 KiB**، وإجمالي `_worker.js` من **6,670 KiB → ~868 KiB** (تقليص ~7.7×) — أصبح ضمن حدود Cloudflare ويُرفَع بنجاح. حجم الـ Worker الآن **مستقل عن حجم البيانات** (كل البيانات أصول static تُجلب وقت الطلب).
+
 ### SEO وكاش صفحة الحلقة
 - `title` + `description` + `canonical` + Open Graph (`og:type=video.episode`) + Twitter + **JSON-LD `TVEpisode`** — كلها مُولّدة من الخادم (HTML كامل قابل للفهرسة).
 - `Cache-Control: public, max-age=0, s-maxage=3600, stale-while-revalidate=86400` (كاش edge لساعة + تقديم نسخة قديمة لمدة يوم أثناء التحديث).

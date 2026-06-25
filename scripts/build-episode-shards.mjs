@@ -27,6 +27,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const allPath = join(root, 'src/data/generated/all.json');
 const outDir = join(root, 'public/_data/episodes');
+const similarDir = join(root, 'public/_data/similar');
 const manifestPath = join(root, 'src/data/generated/episode-manifest.json');
 const routeIndexPath = join(root, 'src/data/generated/episode-routes.json');
 
@@ -49,9 +50,15 @@ function isEpisodic(t) {
 
 if (existsSync(outDir)) rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
+if (existsSync(similarDir)) rmSync(similarDir, { recursive: true, force: true });
+mkdirSync(similarDir, { recursive: true });
 
 const manifest = {};
 const routeIndex = [];
+// Slim "similar titles" index, sharded by category. Each entry only carries the
+// card-level fields getSimilarTitlesLite needs to score + render related cards.
+// Emitted as PLAIN STATIC assets so the SSR Worker never bundles the 5MB index.
+const similarByCategory = {};
 let episodicCount = 0;
 let scanned = 0;
 
@@ -62,6 +69,31 @@ let scanned = 0;
 function processObject(jsonText) {
   const t = JSON.parse(jsonText);
   scanned++;
+
+  // Collect a slim "similar" entry for EVERY title (movies included as cards
+  // can be recommended too) into its category bucket. Only the fields the
+  // runtime scorer/renderer needs — keeps each category file small.
+  const cat = t.category;
+  if (cat) {
+    (similarByCategory[cat] ??= []).push({
+      slug: t.slug,
+      clean_title: t.clean_title,
+      category: t.category,
+      category_label: t.category_label,
+      poster: t.poster ?? null,
+      year: t.year ?? null,
+      episodes_count: t.episodes_count ?? 0,
+      seasons_count: t.seasons_count ?? 0,
+      genre: t.genre ?? null,
+      rating: t.rating ?? 0,
+      votes: t.votes ?? 0,
+      sort_rating: t.sort_rating ?? 0,
+      sort_recent: t.sort_recent ?? 0,
+      is_special: !!t.is_special,
+      country: t.country ?? null,
+    });
+  }
+
   if (!isEpisodic(t)) return;
 
   episodicCount++;
@@ -138,6 +170,15 @@ stream.on('data', (chunk) => {
 stream.on('end', () => {
   writeFileSync(manifestPath, JSON.stringify(manifest));
   writeFileSync(routeIndexPath, JSON.stringify(routeIndex));
+
+  // Emit one slim similar-index per category as a STATIC asset. The SSR episode
+  // routes fetch only their own category file at request time, so the 5MB index
+  // is never bundled into the Worker.
+  for (const [cat, entries] of Object.entries(similarByCategory)) {
+    writeFileSync(join(similarDir, `${cat}.json`), JSON.stringify(entries));
+    console.log(`[episode-shards] similar/${cat}.json -> ${entries.length} titles`);
+  }
+
   console.log(`[episode-shards] scanned ${scanned} titles`);
   console.log(`[episode-shards] wrote ${episodicCount} shards -> public/_data/episodes/`);
   console.log(`[episode-shards] manifest -> src/data/generated/episode-manifest.json`);

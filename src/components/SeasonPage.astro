@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import Breadcrumbs from './Breadcrumbs.astro';
+import EpisodicSeasonsList from './EpisodicSeasonsList.astro';
 import Grid from './Grid.astro';
 import RelatedAnimeSeasons from './RelatedAnimeSeasons.astro';
 import SectionHeader from './SectionHeader.astro';
@@ -8,13 +9,12 @@ import type { Title, TitleIndexEntry } from '../lib/types';
 import type { EpisodicKind } from '../lib/episodeRoutes';
 import {
   findEpisode,
-  getEpisodeAnchor,
-  getEpisodeWatchRoute,
+  getGatewayEpisodeRouteForTitle,
   getSeasonRouteForTitle,
   getTitleRoute,
-  sortedSeasons,
 } from '../lib/episodeRoutes';
 import { SITE } from '../lib/site';
+import { listingRoute } from '../lib/routes';
 import { buildMainDescription, cleanBrand, getRating, getWorkTitle, splitGenres } from '../lib/detailContent';
 
 interface Props {
@@ -27,17 +27,17 @@ interface Props {
 const { title, kind, seasonNumber, similar } = Astro.props;
 const workTitle = getWorkTitle(title);
 const typeLabel = kind === 'series' ? 'مسلسل' : 'أنمي';
-const categoryHref = kind === 'series' ? '/series' : '/anime';
+const sectionTheme = kind === 'series' ? 'series' : 'anime';
+const categoryHref = listingRoute(kind);
 const categoryLabel = kind === 'series' ? 'مسلسلات' : 'أنمي';
 const titleRoute = getTitleRoute(title, kind);
-const seasons = sortedSeasons(title);
 const { season } = findEpisode(title, seasonNumber, 1);
 const currentSeason = season?.season ?? seasonNumber;
-const currentSeasonEpisodes = season?.episodes ?? [];
-const firstEpisode = currentSeasonEpisodes[0] ?? null;
+const firstEpisode = season?.episodes[0] ?? null;
+const canWatchFirstEpisode = (firstEpisode?.servers?.length || 0) > 0;
 const pageHeading = `${typeLabel} ${workTitle} الموسم ${currentSeason}`;
-const pageTitle = `${pageHeading} مترجم اون لاين — سينما برو`;
-const description = `تابع ${typeLabel} ${workTitle} الموسم ${currentSeason} مترجم مع قائمة الحلقات كاملة وروابط المشاهدة بجودة عالية على سينما برو.`;
+const pageTitle = `${pageHeading} مترجم اون لاين — ${SITE.name}`;
+const description = `تابع ${typeLabel} ${workTitle} الموسم ${currentSeason} مترجم مع قائمة الحلقات كاملة وروابط المشاهدة بجودة عالية على ${SITE.name}.`;
 const canonical = new URL(getSeasonRouteForTitle(title, kind, currentSeason), SITE.url).toString();
 const story = buildMainDescription(title, kind, currentSeason);
 const genres = splitGenres(title.genre);
@@ -67,167 +67,120 @@ const jsonLd = {
   image={title.poster ?? undefined}
   ogType="video.tv_show"
   jsonLd={jsonLd}
+  section={sectionTheme}
 >
-  <section class="season-redesign">
-    <div class="season-hero-bg" aria-hidden="true">
-      {title.poster && <img src={title.poster} alt="" loading="eager" referrerpolicy="no-referrer" />}
-      <span></span>
+  <section class="container-app py-8 md:py-10">
+    <Breadcrumbs
+      items={[
+        { label: 'الرئيسية', href: '/' },
+        { label: categoryLabel, href: categoryHref },
+        { label: workTitle, href: titleRoute },
+        { label: `الموسم ${currentSeason}` },
+      ]}
+    />
+
+    <div class="mt-6 glass-panel overflow-hidden">
+      <div class="relative grid grid-cols-1 gap-6 p-5 md:grid-cols-[220px_1fr] md:p-7">
+        <div class="absolute inset-0 -z-10">
+          {title.poster && <img src={title.poster} alt="" aria-hidden="true" loading="eager" referrerpolicy="no-referrer" class="h-full w-full scale-110 object-cover opacity-25 blur-3xl" />}
+          <div class="absolute inset-0 bg-gradient-to-l from-surface-0 via-surface-0/95 to-surface-0/80"></div>
+        </div>
+        <div class="mx-auto w-[190px] md:w-full">
+          <div class="relative aspect-[2/3] overflow-hidden rounded-2xl bg-surface-3 ring-1 ring-white/10">
+            {title.poster ? (
+              <img src={title.poster} alt={workTitle} loading="eager" decoding="async" referrerpolicy="no-referrer" class="h-full w-full object-cover" />
+            ) : (
+              <div class="flex h-full items-center justify-center p-4 text-center text-sm text-gray-400">{workTitle}</div>
+            )}
+            <div class="badge-hd absolute right-3 top-3">{title.quality || 'HD'}</div>
+          </div>
+        </div>
+        <div class="flex flex-col justify-center">
+          <div class="mb-4 flex flex-wrap items-center gap-2">
+            <span class="chip-brand">{typeLabel}</span>
+            {rating && <span class="chip-surface">IMDb {rating}</span>}
+            {title.year && <span class="chip-surface">{title.year}</span>}
+            <span class="chip-surface">الموسم {currentSeason}</span>
+            <span class="chip-surface">{season?.episodes.length ?? 0} حلقة</span>
+            <span class="chip-surface">{title.seasons_count} موسم</span>
+          </div>
+          <h1 class="font-display text-3xl font-extrabold leading-[1.15] text-white md:text-4xl">{pageHeading}</h1>
+          {genres.length > 0 && (
+            <div class="mt-4 flex flex-wrap gap-2">
+              {genres.map((genre) => <span class="rounded-full border border-white/[0.06] bg-white/[0.04] px-3 py-1 text-xs text-gray-300">{genre}</span>)}
+            </div>
+          )}
+          <p class="mt-5 max-w-3xl text-sm leading-8 text-gray-300 md:text-base">{story}</p>
+          {canWatchFirstEpisode && (
+            <a
+              href={getGatewayEpisodeRouteForTitle(title, currentSeason, firstEpisode.episode)}
+              class="btn-primary mt-6 w-full justify-center px-7 py-3.5 text-base sm:w-auto"
+            >
+              مشاهدة أول حلقة
+            </a>
+          )}
+        </div>
+      </div>
     </div>
 
-    <div class="container-app season-shell">
-      <Breadcrumbs
-        items={[
-          { label: 'الرئيسية', href: '/' },
-          { label: categoryLabel, href: categoryHref },
-          { label: workTitle, href: titleRoute },
-          { label: `الموسم ${currentSeason}` },
-        ]}
-      />
+    <!--
+      ملاحظة: لم نعد بحاجة لحقن تفاصيل الحلقة عبر ?e= في صفحة الموسم؛
+      أصبح لكل حلقة صفحة SSR مستقلة قابلة للفهرسة (/.../c/{season}/e/{episode}).
+      روابط الحلقات في EpisodicSeasonsList تشير الآن مباشرةً لتلك الصفحات.
+    -->
 
-      <header class="season-hero-new">
-        <aside class="season-poster-card">
-          {title.poster ? (
-            <img src={title.poster} alt={workTitle} loading="eager" decoding="async" referrerpolicy="no-referrer" />
-          ) : (
-            <div class="skeleton h-full w-full"></div>
-          )}
-          <strong>{title.quality || 'HD'}</strong>
-        </aside>
+    <div class="mt-7 grid grid-cols-1 gap-7 lg:grid-cols-12">
+      <div class="space-y-6 lg:col-span-8">
+        {kind === 'anime' && <RelatedAnimeSeasons title={title} />}
 
-        <article class="season-copy">
-          <span class="season-eyebrow">{typeLabel} · موسم كامل</span>
-          <h1>{pageHeading}</h1>
-          <p>{story}</p>
-          <div class="season-meta-row">
-            {rating && <span>★ {rating}</span>}
-            {title.year && <span>{title.year}</span>}
-            <span>{currentSeasonEpisodes.length.toLocaleString('ar-EG')} حلقة</span>
-            <span>{title.seasons_count.toLocaleString('ar-EG')} موسم</span>
-          </div>
-          {genres.length > 0 && <div class="season-tags">{genres.map((genre) => <span>{genre}</span>)}</div>}
-          {firstEpisode && <a href={getEpisodeWatchRoute(title, currentSeason, firstEpisode.episode)} class="btn-primary season-watch-main">▶ مشاهدة أول حلقة</a>}
-        </article>
-      </header>
-
-      <nav class="season-switcher" aria-label="التنقل بين المواسم">
-        {seasons.map((s) => (
-          <a href={getSeasonRouteForTitle(title, kind, s.season)} class={s.season === currentSeason ? 'is-active' : ''}>
-            الموسم {s.season}
-            <small>{s.episodes.length} حلقة</small>
-          </a>
-        ))}
-      </nav>
-
-      <div class="season-content-grid">
-        <main class="season-main-list">
-          <header class="season-section-title">
-            <span>▶</span>
-            <div>
-              <h2>حلقات الموسم {currentSeason}</h2>
-              <p>تصميم بطاقات جديد مع رقم كبير ومدة وشارة مشاهدة.</p>
-            </div>
-          </header>
-
-          <div class="season-episodes-grid">
-            {currentSeasonEpisodes.map((episode) => {
-              const overview = cleanBrand(episode.overview);
-              const watchHref = getEpisodeWatchRoute(title, currentSeason, episode.episode);
-              return (
-                <article id={getEpisodeAnchor(episode.episode)} class="season-episode-card">
-                  <a href={watchHref} class="episode-thumb-new">
-                    {title.poster && <img src={title.poster} alt={`${workTitle} الحلقة ${episode.episode}`} loading="lazy" decoding="async" referrerpolicy="no-referrer" />}
-                    <span>{episode.episode}</span>
-                  </a>
-                  <div class="episode-body-new">
-                    <h3>الحلقة {episode.episode}: {episode.title || workTitle}</h3>
-                    <div class="episode-mini-meta">
-                      {episode.air_date && <span>{episode.air_date}</span>}
-                      <span>{episode.runtime ? `${episode.runtime} دقيقة` : `${episode.servers?.length ?? 0} سيرفر`}</span>
-                      <span>مشاهدة</span>
-                    </div>
-                    {overview && <p>{overview}</p>}
-                    <a href={watchHref}>مشاهدة الحلقة</a>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </main>
-
-        <aside class="season-side-panel">
-          <div class="season-side-sticky">
-            <h3>معلومات الموسم</h3>
-            <dl>
-              <div><dt>نوع العمل</dt><dd>{typeLabel}</dd></div>
-              <div><dt>الموسم الحالي</dt><dd>{currentSeason}</dd></div>
-              <div><dt>عدد الحلقات</dt><dd>{currentSeasonEpisodes.length}</dd></div>
-              <div><dt>كل المواسم</dt><dd>{title.seasons_count}</dd></div>
-            </dl>
-            <a href={titleRoute} class="btn-secondary">العودة لصفحة العمل</a>
-          </div>
-        </aside>
+        <EpisodicSeasonsList
+          title={title}
+          kind={kind}
+          activeSeason={currentSeason}
+          showAllEpisodes={false}
+        />
       </div>
 
-      {kind === 'anime' && <div class="season-extra-block"><RelatedAnimeSeasons title={title} /></div>}
-
-      {similar.length > 0 && (
-        <div class="season-related">
-          <SectionHeader title="أعمال مشابهة" subtitle="اقتراحات قريبة من نفس التصنيف" eyebrow="RELATED" />
-          <Grid items={similar} />
+      <aside class="space-y-5 lg:col-span-4">
+        <div class="glass-panel overflow-hidden lg:sticky lg:top-24">
+          <div class="relative aspect-[2/3] w-full bg-surface-3">
+            {title.poster ? (
+              <img
+                src={title.poster}
+                alt={workTitle}
+                loading="lazy"
+                decoding="async"
+                referrerpolicy="no-referrer"
+                class="h-full w-full object-cover"
+              />
+            ) : (
+              <div class="flex h-full items-center justify-center p-6 text-center text-sm text-gray-400">{workTitle}</div>
+            )}
+            <div class="absolute inset-0 bg-gradient-to-t from-surface-0 via-transparent to-transparent"></div>
+          </div>
+          <div class="space-y-2 p-5 text-sm">
+            <div class="flex justify-between gap-4 border-b border-white/[0.04] py-2">
+              <span class="text-gray-400">نوع العمل</span>
+              <span class="font-semibold text-white">{typeLabel}</span>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-white/[0.04] py-2">
+              <span class="text-gray-400">كل المواسم</span>
+              <span class="font-semibold text-white">{title.seasons_count}</span>
+            </div>
+            <div class="flex justify-between gap-4 py-2">
+              <span class="text-gray-400">كل الحلقات</span>
+              <span class="font-semibold text-white">{title.episodes_count}</span>
+            </div>
+          </div>
         </div>
-      )}
+      </aside>
     </div>
+
+    {similar.length > 0 && (
+      <div class="mt-14 md:mt-20">
+        <SectionHeader title="أعمال مشابهة" subtitle="اقتراحات قريبة من نفس التصنيف" eyebrow="RELATED" />
+        <Grid items={similar} />
+      </div>
+    )}
   </section>
 </Base>
-
-<style>
-  .season-redesign { position: relative; overflow: hidden; background: #0B0F19; min-height: 100vh; padding: 28px 0 80px; }
-  .season-hero-bg { position: absolute; inset: 0 0 auto; height: 520px; pointer-events: none; }
-  .season-hero-bg img { width: 100%; height: 100%; object-fit: cover; opacity: .14; filter: blur(24px) brightness(.42); transform: scale(1.08); }
-  .season-hero-bg span { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(17,24,39,.92), rgba(11,15,25,.98) 70%, #0B0F19); }
-  .season-shell { position: relative; z-index: 1; }
-  .season-hero-new { margin-top: 26px; min-height: 430px; display: grid; grid-template-columns: 280px 1fr; gap: 34px; align-items: center; background: linear-gradient(135deg,#111827,#0B0F19); border: 1px solid rgba(255,255,255,.07); border-radius: 30px; padding: 28px; overflow: hidden; }
-  .season-poster-card { position: relative; aspect-ratio: 2 / 3; border-radius: 24px; overflow: hidden; border: 1px solid rgba(255,255,255,.07); background: #111827; box-shadow: 0 28px 70px rgba(0,0,0,.55); transform: rotate(-2deg); }
-  .season-poster-card img { width: 100%; height: 100%; object-fit: cover; }
-  .season-poster-card strong { position: absolute; top: 14px; right: 14px; background: #2563EB; color: #F9FAFB; border-radius: 999px; padding: 6px 12px; font-weight: 900; font-size: 12px; }
-  .season-copy { max-width: 850px; }
-  .season-eyebrow { color: #2563EB; font-weight: 900; letter-spacing: .12em; font-size: 12px; }
-  .season-copy h1 { color: #F9FAFB; font-size: clamp(34px,5vw,56px); line-height: 1.22; font-weight: 900; margin: 12px 0 16px; }
-  .season-copy p { color: #9CA3AF; line-height: 2; font-size: 16px; }
-  .season-meta-row, .season-tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
-  .season-meta-row span, .season-tags span { border: 1px solid rgba(255,255,255,.07); background: #111827; color: #F9FAFB; border-radius: 999px; padding: 8px 13px; font-size: 12px; font-weight: 900; }
-  .season-tags span { color: #9CA3AF; }
-  .season-watch-main { margin-top: 26px; }
-  .season-switcher { display: flex; gap: 12px; overflow-x: auto; padding: 22px 0 8px; scrollbar-width: none; }
-  .season-switcher a { flex: 0 0 auto; min-width: 138px; background: #111827; border: 1px solid rgba(255,255,255,.07); border-radius: 18px; padding: 13px 16px; color: #F9FAFB; font-weight: 900; transition: transform .25s, background .25s; }
-  .season-switcher a small { display: block; color: #9CA3AF; font-size: 11px; margin-top: 4px; }
-  .season-switcher a:hover, .season-switcher .is-active { background: linear-gradient(135deg,#2563EB,#7C3AED); transform: translateY(-4px); }
-  .season-switcher .is-active small { color: rgba(249,250,251,.82); }
-  .season-content-grid { display: grid; grid-template-columns: minmax(0,1fr) 330px; gap: 24px; margin-top: 24px; }
-  .season-main-list, .season-side-sticky { background: #111827; border: 1px solid rgba(255,255,255,.07); border-radius: 24px; padding: 22px; }
-  .season-section-title { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
-  .season-section-title span { width: 44px; height: 44px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#2563EB,#7C3AED); color: #F9FAFB; }
-  .season-section-title h2 { color: #F9FAFB; font-weight: 900; font-size: 24px; }
-  .season-section-title p { color: #9CA3AF; font-size: 13px; margin-top: 3px; }
-  .season-episodes-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
-  .season-episode-card { display: grid; grid-template-columns: 150px 1fr; gap: 14px; background: #0B0F19; border: 1px solid rgba(255,255,255,.07); border-radius: 18px; padding: 12px; transition: background .25s, transform .25s, box-shadow .25s; }
-  .season-episode-card:hover { background: #1a2235; transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,.5); }
-  .episode-thumb-new { position: relative; height: 106px; overflow: hidden; border-radius: 14px; background: #111827; }
-  .episode-thumb-new img { width: 100%; height: 100%; object-fit: cover; filter: brightness(.74); transition: transform .4s; }
-  .season-episode-card:hover .episode-thumb-new img { transform: scale(1.08); }
-  .episode-thumb-new span { position: absolute; inset: auto 10px 10px auto; width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg,#2563EB,#7C3AED); display: inline-flex; align-items: center; justify-content: center; color: #F9FAFB; font-size: 24px; font-weight: 900; }
-  .episode-body-new h3 { color: #F9FAFB; font-weight: 900; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .episode-mini-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-  .episode-mini-meta span { color: #9CA3AF; border: 1px solid rgba(255,255,255,.07); border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 800; }
-  .episode-body-new p { color: #9CA3AF; font-size: 13px; line-height: 1.8; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .episode-body-new a { display: inline-flex; margin-top: 10px; color: #F9FAFB; background: #2563EB; border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 900; }
-  .season-side-sticky { position: sticky; top: 140px; }
-  .season-side-sticky h3 { color: #F9FAFB; font-size: 20px; font-weight: 900; margin-bottom: 14px; }
-  .season-side-sticky dl { display: grid; gap: 10px; margin-bottom: 18px; }
-  .season-side-sticky dl div { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.07); padding-bottom: 10px; }
-  .season-side-sticky dt { color: #9CA3AF; } .season-side-sticky dd { color: #F9FAFB; font-weight: 900; }
-  .season-extra-block, .season-related { margin-top: 44px; }
-  @media (max-width: 1180px) { .season-content-grid { grid-template-columns: 1fr; } .season-side-sticky { position: static; } .season-episodes-grid { grid-template-columns: 1fr; } }
-  @media (max-width: 780px) { .season-hero-new { grid-template-columns: 1fr; } .season-poster-card { width: min(250px,80vw); margin: 0 auto; } }
-  @media (max-width: 560px) { .season-hero-new { padding: 16px; border-radius: 22px; } .season-episode-card { grid-template-columns: 1fr; } .episode-thumb-new { height: 160px; } }
-</style>

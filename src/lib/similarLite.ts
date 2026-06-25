@@ -1,13 +1,16 @@
 /**
  * Lightweight "similar titles" for the SSR episode pages.
  *
- * The static `getSimilarTitles` in titles.ts pulls from all.json (86MB) — too
- * heavy for an SSR Worker. This variant reads the slim pre-built index.json
- * (~5MB, card-level fields only) and reproduces the same scoring used by the
- * static pages, returning ready-to-render TitleIndexEntry objects.
+ * CRITICAL: this module must NOT statically import index.json (~5MB). Doing so
+ * bundles the whole index into the SSR Worker (>5MB chunk) and pushes the Worker
+ * past Cloudflare Pages' publish limit ("Failed to publish assets").
+ *
+ * Instead, scripts/build-episode-shards.mjs emits one slim, card-level index per
+ * category as a PLAIN STATIC asset under public/_data/similar/<category>.json.
+ * We fetch only the current title's category file at request time (same pattern
+ * as episodeData.ts), so the Worker stays tiny.
  */
 import type { Category, TitleIndexEntry } from './types';
-import indexData from '../data/generated/index.json';
 import { splitGenres } from './detailContent';
 import { detailRoute } from './routes';
 
@@ -16,14 +19,11 @@ interface RawIndexEntry {
   clean_title: string;
   category: Category;
   category_label: string;
-  url: string;
   poster: string | null;
   year?: string | null;
   episodes_count: number;
   seasons_count: number;
-  has_multiple_seasons: boolean;
   genre?: string | null;
-  description?: string;
   rating?: number;
   votes?: number;
   sort_rating?: number;
@@ -32,7 +32,28 @@ interface RawIndexEntry {
   country?: string | null;
 }
 
-const INDEX = indexData as unknown as RawIndexEntry[];
+// Per-origin, per-category in-memory cache so a single Worker isolate that
+// serves several requests only fetches each category file once.
+const categoryCache = new Map<string, RawIndexEntry[]>();
+
+async function loadCategoryIndex(
+  category: Category,
+  requestUrl: URL
+): Promise<RawIndexEntry[]> {
+  const cacheKey = `${requestUrl.origin}::${category}`;
+  const cached = categoryCache.get(cacheKey);
+  if (cached) return cached;
+
+  const assetUrl = new URL(`/_data/similar/${category}.json`, requestUrl.origin);
+  const res = await fetch(assetUrl);
+  if (!res.ok) {
+    categoryCache.set(cacheKey, []);
+    return [];
+  }
+  const data = (await res.json()) as RawIndexEntry[];
+  categoryCache.set(cacheKey, data);
+  return data;
+}
 
 function toEntry(e: RawIndexEntry): TitleIndexEntry {
   const genres = splitGenres(e.genre);
@@ -59,17 +80,24 @@ function toEntry(e: RawIndexEntry): TitleIndexEntry {
 /**
  * Same heuristic as titles.ts#getSimilarTitles: prefer overlapping genres,
  * then country / year, with a deterministic tiebreak.
+ *
+ * Now async — fetches the slim per-category index from a static asset instead
+ * of bundling the full index. `requestUrl` (Astro.url) provides the origin.
  */
-export function getSimilarTitlesLite(
+export async function getSimilarTitlesLite(
   currentSlug: string,
   currentCategory: Category,
   currentGenre: string | null | undefined,
   currentCountry: string | null | undefined,
   currentYear: string | null | undefined,
+  requestUrl: URL,
   limit = 12
-): TitleIndexEntry[] {
+): Promise<TitleIndexEntry[]> {
+  const index = await loadCategoryIndex(currentCategory, requestUrl);
   const currentGenres = new Set(splitGenres(currentGenre));
-  const sameCat = INDEX.filter((t) => t.category === currentCategory && t.slug !== currentSlug);
+  const sameCat = index.filter(
+    (t) => t.category === currentCategory && t.slug !== currentSlug
+  );
   const hash = [...currentSlug].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0);
 
   return sameCat

@@ -48,6 +48,7 @@ scripts/.cache/
 
 # Generated episode shards & indexes (rebuilt by scripts/build-episode-shards.mjs on every build)
 public/_data/episodes/
+public/_data/similar/
 src/data/generated/episode-manifest.json
 src/data/generated/episode-routes.json
 .wrangler/
