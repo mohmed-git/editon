@@ -1,54 +1,33 @@
-# Dependencies
-node_modules/
-
-# Build output
+# prod
 dist/
-.astro/
 
-# Data processing artifacts (regenerated on build)
-# keep generated JSON committed optionally — we ignore to keep repo light
-# src/data/titles/
-# src/data/generated/
+# dev
+.yarn/
+!.yarn/releases
+.vscode/*
+!.vscode/launch.json
+!.vscode/*.code-snippets
+.idea/workspace.xml
+.idea/usage.statistics.xml
+.idea/shelf
 
-# Logs
+# deps
+node_modules/
+.wrangler
+
+# env
+.env
+.env.production
+.dev.vars
+
+# logs
+logs/
 *.log
 npm-debug.log*
-pids
-*.pid
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Env
-.env
-.env.local
-.env.*.local
-
-# Netlify
-.netlify/
-
-# Editor
-.vscode/
-.idea/
+# misc
 .DS_Store
-
-# OS
-Thumbs.db
-
-# Backup
-*.bak
-*.backup
-*.tar.gz
-*.zip
-
-# Reports can stay for inspection
-# reports/
-
-# Trim-data backup
-src/data/generated/all.full.json
-.dev.vars
-scripts/.cache/
-
-# Generated episode shards & indexes (rebuilt by scripts/build-episode-shards.mjs on every build)
-public/_data/episodes/
-public/_data/similar/
-src/data/generated/episode-manifest.json
-src/data/generated/episode-routes.json
-.wrangler/
