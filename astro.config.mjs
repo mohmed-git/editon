@@ -30,9 +30,6 @@ export default defineConfig({
   adapter: cloudflare({
     imageService: 'compile',
   }),
-  session: {
-    driver: 'memory',
-  },
   trailingSlash: 'ignore',
   build: {
     format: 'directory',

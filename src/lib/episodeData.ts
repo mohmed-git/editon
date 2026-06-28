@@ -6,28 +6,17 @@
  * chunks and cripples the build). Instead the shards are emitted by
  * scripts/build-episode-shards.mjs as PLAIN STATIC assets under
  * public/_data/episodes/<file>.json, and we fetch the single needed shard at
- * request time.
+ * request time. Only the tiny slug→file manifest (~170KB) is bundled.
  *
- * The manifest (slug→file map) is also fetched at runtime from a static asset
- * instead of being bundled into the Worker — this keeps the Worker lean.
+ * The shards carry the exact same Title objects the static pages render; we
+ * re-apply the opaque url-rewrite so internal links match the rest of the site.
  */
 import type { Title } from './types';
 import { detailRoute } from './routes';
+import manifest from '../data/generated/episode-manifest.json';
 
-// Per-isolate cache for the manifest and title data.
-let manifestCache: Record<string, string> | null = null;
-
-async function getManifest(requestUrl: URL): Promise<Record<string, string>> {
-  if (manifestCache) return manifestCache;
-  const url = new URL('/_data/episode-manifest.json', requestUrl.origin);
-  const res = await fetch(url);
-  if (!res.ok) {
-    manifestCache = {};
-    return manifestCache;
-  }
-  manifestCache = (await res.json()) as Record<string, string>;
-  return manifestCache;
-}
+// slug -> shard filename (base64url of slug). Generated at build time.
+const SLUG_TO_FILE = manifest as Record<string, string>;
 
 function normalize(raw: Title): Title {
   return {
@@ -52,8 +41,7 @@ export async function loadEpisodicTitle(
   slug: string,
   requestUrl: URL
 ): Promise<Title | undefined> {
-  const manifest = await getManifest(requestUrl);
-  const file = manifest[slug];
+  const file = SLUG_TO_FILE[slug];
   if (!file) return undefined;
 
   const assetUrl = new URL(`/_data/episodes/${file}.json`, requestUrl.origin);

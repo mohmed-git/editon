@@ -1,0 +1,132 @@
+---
+/**
+ * SSR episode page for a NEW (CSV-ingested) series/anime work.
+ *
+ * Renders a full, indexable episode page with the streaming player inline.
+ * Loads the work's detail shard at request time; nothing is bundled.
+ */
+export const prerender = false;
+
+import Base from '../../../../../../layouts/Base.astro';
+import Breadcrumbs from '../../../../../../components/Breadcrumbs.astro';
+import { SITE } from '../../../../../../lib/site';
+import { newDetailRoute, newGatewayRoute } from '../../../../../../lib/routes';
+import { loadNewWork } from '../../../../../../lib/newWorks';
+import { SUB_BY_KEY, subcatRoute } from '../../../../../../lib/subcategories';
+
+const { slug, season, episode } = Astro.params;
+const seasonNumber = Number.parseInt(season ?? '', 10);
+const episodeNumber = Number.parseInt(episode ?? '', 10);
+
+const title = slug ? await loadNewWork(slug, Astro.url) : undefined;
+if (!title || Number.isNaN(seasonNumber) || Number.isNaN(episodeNumber)) {
+  return new Response('Not found', { status: 404 });
+}
+
+const s = title.seasons.find((x) => x.season === seasonNumber);
+const ep = s?.episodes.find((x) => x.episode === episodeNumber);
+if (!s || !ep) return new Response('Not found', { status: 404 });
+
+// flat list for prev/next
+const flat: { season: number; episode: number }[] = [];
+for (const sn of title.seasons) for (const e of sn.episodes) flat.push({ season: sn.season, episode: e.episode });
+const idx = flat.findIndex((x) => x.season === seasonNumber && x.episode === episodeNumber);
+const prev = idx > 0 ? flat[idx - 1] : null;
+const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
+
+const sub = (title as any).subcategory as string | undefined;
+const subDef = sub ? SUB_BY_KEY[sub] : undefined;
+const section = title.category === 'anime' ? 'anime' : 'series';
+const kindLabel = title.category === 'anime' ? 'أنمي' : 'مسلسل';
+
+const epTitle = `${title.clean_title} الموسم ${seasonNumber} الحلقة ${episodeNumber}`;
+const pageTitle = `${epTitle} مترجمة اون لاين`;
+const pageDescription = `شاهد ${kindLabel} ${epTitle} مترجمة بجودة عالية مع روابط مشاهدة مباشرة على ${SITE.name}.`;
+
+const servers = ep.servers || [];
+const serversJson = JSON.stringify(servers.map((sv) => ({ label: sv.label, url: sv.url })));
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'TVEpisode',
+  name: epTitle,
+  episodeNumber,
+  partOfSeason: { '@type': 'TVSeason', seasonNumber },
+  partOfSeries: { '@type': 'TVSeries', name: title.clean_title },
+  inLanguage: 'ar',
+  description: pageDescription,
+};
+---
+
+<Base title={pageTitle} description={pageDescription} image={title.poster ?? undefined} ogType="video.episode" jsonLd={jsonLd} section={section as any}>
+  <div class="fixed inset-0 -z-10 pointer-events-none">
+    {title.poster && (<img src={title.poster} alt="" aria-hidden="true" loading="eager" referrerpolicy="no-referrer" class="h-full w-full object-cover blur-3xl scale-110 opacity-20" />)}
+    <div class="absolute inset-0 bg-surface-0/80"></div>
+  </div>
+
+  <section class="container-app py-6">
+    <Breadcrumbs items={[
+      { label: 'الرئيسية', href: '/' },
+      ...(subDef ? [{ label: subDef.label, href: subcatRoute(subDef.code) }] : []),
+      { label: title.clean_title, href: newDetailRoute(title.slug) },
+      { label: `الموسم ${seasonNumber} الحلقة ${episodeNumber}` },
+    ]} />
+
+    <div class="mb-6 mt-4 flex flex-wrap items-center gap-4">
+      {title.poster && (<img src={title.poster} alt={title.clean_title} referrerpolicy="no-referrer" loading="eager" class="hidden sm:block h-24 w-16 md:h-28 md:w-20 rounded-xl object-cover shadow-lg ring-1 ring-brand-500/30" />)}
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="badge-category">{title.category_label}</span>
+          <span class="badge-episode">{title.episodes_count} حلقة</span>
+        </div>
+        <h1 class="font-display text-xl font-extrabold leading-tight text-white md:text-2xl line-clamp-2">{epTitle}</h1>
+      </div>
+      <a href={newDetailRoute(title.slug)} class="btn-secondary shrink-0 text-sm">كل الحلقات</a>
+    </div>
+
+    <div class="relative">
+      <div class="absolute -inset-3 -z-10 bg-gradient-to-br from-brand-600/20 via-neon-violet/20 to-neon-fuchsia/20 blur-3xl rounded-3xl"></div>
+      <div class="relative aspect-video w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-black shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
+        <div id="player-loading" class="absolute inset-0 z-10 flex items-center justify-center bg-black/85 text-gray-300">
+          <div class="text-sm font-bold text-white">جاري تحميل المشغّل…</div>
+        </div>
+        <iframe id="video-frame" src="about:blank" title={epTitle} class="h-full w-full" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="no-referrer" loading="eager"></iframe>
+      </div>
+    </div>
+
+    <div class="mt-6 glass-panel p-5">
+      <div class="mb-4 flex items-center justify-between">
+        <h3 class="flex items-center gap-2 text-sm font-bold text-white"><span class="flex h-5 w-1 rounded-full bg-gradient-to-b from-brand-400 to-neon-fuchsia"></span>اختر السيرفر</h3>
+        <span class="chip-surface">{servers.length} سيرفر</span>
+      </div>
+      <div id="servers-list" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+      {prev ? (<a href={`/w/${title.slug}/c/${prev.season}/e/${prev.episode}`} class="btn-secondary">الحلقة السابقة</a>) : (<span class="btn-secondary opacity-40 pointer-events-none">الحلقة السابقة</span>)}
+      <div class="chip-surface text-sm font-medium">الموسم {seasonNumber} · الحلقة {episodeNumber}</div>
+      {next ? (<a href={`/w/${title.slug}/c/${next.season}/e/${next.episode}`} class="btn-primary">الحلقة التالية</a>) : (<span class="btn-primary opacity-40 pointer-events-none">الحلقة التالية</span>)}
+    </div>
+  </section>
+
+  <script id="srv-data" type="application/json" set:html={serversJson} />
+  <script>
+    const servers = JSON.parse(document.getElementById('srv-data')?.textContent || '[]');
+    const frame = document.getElementById('video-frame') as HTMLIFrameElement;
+    const loading = document.getElementById('player-loading')!;
+    const list = document.getElementById('servers-list')!;
+    function esc(s: string){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+    function load(url: string){ loading.classList.remove('hidden'); frame.src = url; }
+    list.innerHTML = servers.map((sv: any, i: number) => `<button type="button" data-url="${esc(sv.url)}" data-i="${i}" class="server-btn inline-flex items-center gap-2 rounded-xl ${i===0?'text-white':'bg-white/[0.04] border border-white/[0.06] text-gray-200 hover:bg-brand-500/10 hover:border-brand-500/30 hover:text-white'} px-4 py-2.5 text-sm font-semibold transition-all" ${i===0?'style="background:linear-gradient(135deg,#7c3aed,#a855f7 50%,#d946ef);"':''}>${esc(sv.label)}</button>`).join('');
+    list.querySelectorAll<HTMLButtonElement>('.server-btn').forEach((b)=>{
+      b.addEventListener('click',()=>{
+        list.querySelectorAll<HTMLButtonElement>('.server-btn').forEach((x)=>{x.style.background='';x.className='server-btn inline-flex items-center gap-2 rounded-xl bg-white/[0.04] border border-white/[0.06] text-gray-200 hover:bg-brand-500/10 hover:border-brand-500/30 hover:text-white px-4 py-2.5 text-sm font-semibold transition-all';});
+        b.style.background='linear-gradient(135deg,#7c3aed,#a855f7 50%,#d946ef)'; b.className='server-btn inline-flex items-center gap-2 rounded-xl text-white px-4 py-2.5 text-sm font-semibold transition-all';
+        load(b.dataset.url!);
+      });
+    });
+    frame.addEventListener('load',()=>loading.classList.add('hidden'));
+    setTimeout(()=>loading.classList.add('hidden'),4500);
+    if(servers.length) load(servers[0].url);
+  </script>
+</Base>

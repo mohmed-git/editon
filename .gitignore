@@ -1,33 +1,58 @@
-# prod
-dist/
-
-# dev
-.yarn/
-!.yarn/releases
-.vscode/*
-!.vscode/launch.json
-!.vscode/*.code-snippets
-.idea/workspace.xml
-.idea/usage.statistics.xml
-.idea/shelf
-
-# deps
+# Dependencies
 node_modules/
-.wrangler
 
-# env
-.env
-.env.production
-.dev.vars
+# Build output
+dist/
+.astro/
 
-# logs
-logs/
+# Data processing artifacts (regenerated on build)
+# keep generated JSON committed optionally — we ignore to keep repo light
+# src/data/titles/
+# src/data/generated/
+
+# Logs
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+pids
+*.pid
 
-# misc
+# Env
+.env
+.env.local
+.env.*.local
+
+# Netlify
+.netlify/
+
+# Editor
+.vscode/
+.idea/
 .DS_Store
+
+# OS
+Thumbs.db
+
+# Backup
+*.bak
+*.backup
+*.tar.gz
+*.zip
+
+# Reports can stay for inspection
+# reports/
+
+# Trim-data backup
+src/data/generated/all.full.json
+.dev.vars
+scripts/.cache/
+
+# Generated episode shards & indexes (rebuilt by scripts/build-episode-shards.mjs on every build)
+public/_data/episodes/
+public/_data/similar/
+public/_data/new/
+public/_data/subcat/
+src/data/generated/episode-manifest.json
+src/data/generated/episode-routes.json
+src/data/generated/new-manifest.json
+src/data/generated/subcat-counts.json
+.wrangler/

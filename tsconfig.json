@@ -1,15 +1,16 @@
 {
+  "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "strict": true,
-    "skipLibCheck": true,
-    "lib": [
-      "ESNext"
-    ],
-    "types": ["vite/client"],
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx"
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@layouts/*": ["src/layouts/*"],
+      "@lib/*": ["src/lib/*"],
+      "@data/*": ["src/data/*"]
+    },
+    "jsx": "preserve"
   },
+  "include": [".astro/types.d.ts", "**/*"],
+  "exclude": ["dist", "node_modules"]
 }

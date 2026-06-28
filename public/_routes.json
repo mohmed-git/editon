@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/d/*", "/n/*", "/episodes-sitemap/*"],
-  "exclude": []
+  "include": ["/*"],
+  "exclude": ["/_astro/*", "/favicon.ico", "/robots.txt", "/sitemap-index.xml", "/episodes-sitemap.xml"]
 }
