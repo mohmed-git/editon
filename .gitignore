@@ -51,6 +51,7 @@ public/_data/episodes/
 public/_data/similar/
 public/_data/new/
 public/_data/subcat/
+public/_data/oldgw/
 src/data/generated/episode-manifest.json
 src/data/generated/episode-routes.json
 src/data/generated/new-manifest.json

@@ -1,35 +1,34 @@
 ---
 /**
- * Universal gateway (streaming) page — one static page per work, reached via
- * an opaque encoded token instead of a readable /watch/ path.
+ * Universal gateway (streaming) page for the ORIGINAL catalogue — reached via an
+ * opaque encoded token instead of a readable /watch/ path.
  *   /g/{token}            -> first episode, first server
  *   /g/{token}?s=1&e=5    -> season 1 episode 5
  * The token decodes back to the work slug (see routes.ts encodeGateToken).
+ *
+ * SSR (on-demand): previously one static page per work (~5.8k files) which, on
+ * top of the detail + season pages, blew Cloudflare Pages' 20,000-file limit.
+ * The work's slim gateway payload (identity + seasons/servers) is now fetched
+ * from a hashed bucket at request time via loadOldGateway(); nothing about this
+ * route is built statically.
  */
+export const prerender = false;
+
 import Base from '../../layouts/Base.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { getAllTitles } from '../../lib/titles';
-import type { Title } from '../../lib/types';
 import { SITE } from '../../lib/site';
-import { encodeGateToken, listingRoute } from '../../lib/routes';
+import { decodeGateToken, listingRoute } from '../../lib/routes';
+import { loadOldGateway } from '../../lib/oldGateway';
 
-export async function getStaticPaths() {
-  // Old catalogue only. New (CSV-ingested) works are SSR and have their OWN
-  // gateway at /gw/[token]; building a static gateway for the 12k+ new works
-  // would blow the Cloudflare Pages 20k-file limit.
-  const all = getAllTitles().filter((t) => !(t as any).is_new);
-  return all.map((t) => ({
-    params: { token: encodeGateToken(t.slug) },
-    props: { title: t },
-  }));
-}
-
-const { title } = Astro.props as { title: Title };
+const { token } = Astro.params;
+const slug = token ? decodeGateToken(token) : '';
+const title = slug ? await loadOldGateway(slug, Astro.url) : undefined;
+if (!title) return new Response('Not found', { status: 404 });
 
 const sectionTheme =
   title.category === 'movie' ? 'movies' :
   title.category === 'series' ? 'series' : 'anime';
-const categoryBase = listingRoute(title.category);
+const categoryBase = listingRoute(title.category as any);
 const categoryLabel =
   title.category === 'movie' ? 'أفلام' :
   title.category === 'series' ? 'مسلسلات' : 'أنمي';

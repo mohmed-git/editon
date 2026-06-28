@@ -34,13 +34,19 @@ const routeIndexPath = join(root, 'src/data/generated/episode-routes.json');
 
 // NEW-works (CSV-ingested, is_new=true) artifacts. These works are served
 // on-demand (SSR), never statically built, so we emit:
-//   - one full detail shard per new work  -> public/_data/new/<file>.json
-//   - a slug -> file manifest             -> new-manifest.json
-//   - a slim per-subcategory card index   -> public/_data/subcat/<sub>.json
+//   - hashed bucket files (bucket -> { slug: Title }) -> public/_data/new/<n>.json
+//   - a slim per-subcategory card index               -> public/_data/subcat/<sub>.json
 const newDir = join(root, 'public/_data/new');
 const subcatDir = join(root, 'public/_data/subcat');
-const newManifestPath = join(root, 'src/data/generated/new-manifest.json');
 const subcatCountsPath = join(root, 'src/data/generated/subcat-counts.json');
+
+// OLD-works (original catalogue) gateway buckets. The /g gateway page used to be
+// statically built — one HTML file per work (~5.8k files) — which, on top of the
+// detail + season pages, pushed the deployment over Cloudflare's 20,000-file
+// limit. We now serve /g as SSR too, loading each work's slim "gateway payload"
+// (slug, title, poster, category, seasons+servers) from a hashed bucket file at
+// request time. Same NEW_BUCKETS hash; loaded on the edge via loadOldGateway().
+const oldGwDir = join(root, 'public/_data/oldgw');
 
 
 
@@ -50,6 +56,30 @@ function slugToFile(slug) {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
+}
+
+/**
+ * Bucket count for NEW-work shards.
+ *
+ * Cloudflare Pages caps a deployment at 20,000 files. Emitting ONE shard per new
+ * work (~12.8k files) blew that limit. Instead we group the new works into a
+ * fixed, small number of bucket files keyed by a stable hash of the slug, so the
+ * file count stays constant regardless of catalogue size. The runtime loader
+ * computes the SAME hash on the edge, fetches just that one bucket, and pulls the
+ * work out of it. 256 buckets ⇒ ~50 works/bucket ⇒ ~135KB/bucket (well cached).
+ *
+ * MUST stay in sync with src/lib/newWorks.ts `NEW_BUCKETS` + `slugToBucket`.
+ */
+const NEW_BUCKETS = 256;
+
+/** FNV-1a (32-bit) → stable bucket index. Mirrored in newWorks.ts. */
+function slugToBucket(slug) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < slug.length; i++) {
+    h ^= slug.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0) % NEW_BUCKETS;
 }
 
 function isEpisodic(t) {
@@ -69,13 +99,23 @@ if (existsSync(newDir)) rmSync(newDir, { recursive: true, force: true });
 mkdirSync(newDir, { recursive: true });
 if (existsSync(subcatDir)) rmSync(subcatDir, { recursive: true, force: true });
 mkdirSync(subcatDir, { recursive: true });
+if (existsSync(oldGwDir)) rmSync(oldGwDir, { recursive: true, force: true });
+mkdirSync(oldGwDir, { recursive: true });
 
 const manifest = {};
 const routeIndex = [];
-// NEW works: slug -> shard filename, and slim card index grouped by subcategory.
-const newManifest = {};
+// NEW works: hashed buckets (bucket -> { slug: Title }) + slim per-subcategory
+// card index. Bucketing keeps the static file count tiny (NEW_BUCKETS files
+// instead of ~12.8k), staying under Cloudflare Pages' 20,000-file limit.
+const newBuckets = {}; // bucketIndex -> { slug: Title }
 const subcatIndex = {}; // sub -> [card entries]
 let newCount = 0;
+
+// OLD works gateway payloads → hashed buckets (bucket -> { slug: GatewayPayload }).
+// Replaces the ~5.8k statically-built /g pages with NEW_BUCKETS files served via
+// SSR, removing the last big chunk of the deployment's file count.
+const oldGwBuckets = {}; // bucketIndex -> { slug: { slug, clean_title, category, poster, seasons } }
+let oldGwCount = 0;
 
 // Slim "similar titles" index, sharded by category. Each entry only carries the
 // card-level fields getSimilarTitlesLite needs to score + render related cards.
@@ -117,6 +157,33 @@ function processObject(jsonText) {
   // runtime scorer/renderer needs — keeps each category file small.
   const cat = t.category;
   if (cat && !t.is_new) {
+    // OLD-work gateway payload → hashed bucket (replaces static /g pages).
+    // Only the fields the gateway player needs: identity + seasons/servers.
+    oldGwCount++;
+    const gb = slugToBucket(t.slug);
+    (oldGwBuckets[gb] ??= {})[t.slug] = {
+      slug: t.slug,
+      clean_title: t.clean_title,
+      category: t.category,
+      category_label: t.category_label ?? null,
+      poster: t.poster ?? null,
+      episodes_count: t.episodes_count ?? 0,
+      url: t.url ?? null,
+      seasons: Array.isArray(t.seasons)
+        ? t.seasons.map((s) => ({
+            season: s.season,
+            episodes: Array.isArray(s.episodes)
+              ? s.episodes.map((e) => ({
+                  episode: e.episode,
+                  servers: Array.isArray(e.servers)
+                    ? e.servers.map((sv) => ({ id: sv.id, label: sv.label, url: sv.url }))
+                    : [],
+                }))
+              : [],
+          }))
+        : [],
+    };
+
     (similarByCategory[cat] ??= []).push({
       slug: t.slug,
       clean_title: t.clean_title,
@@ -136,13 +203,15 @@ function processObject(jsonText) {
     });
   }
 
-  // NEW works (CSV-ingested) → emit a full detail shard + register in the slim
-  // per-subcategory card index. These are SSR-only (never statically built).
+  // NEW works (CSV-ingested) → append into a hashed BUCKET (not one file each, to
+  // stay under Cloudflare's 20k-file limit) + register in the slim per-subcategory
+  // card index. These are SSR-only (never statically built). The per-episode SSR
+  // page (/w/.../e/...) loads the full work from its bucket via loadNewWork, so
+  // new works do NOT need a separate episodes/ shard or route-index entry.
   if (t.is_new) {
     newCount++;
-    const nf = slugToFile(t.slug);
-    writeFileSync(join(newDir, `${nf}.json`), JSON.stringify(t));
-    newManifest[t.slug] = nf;
+    const b = slugToBucket(t.slug);
+    (newBuckets[b] ??= {})[t.slug] = t;
     const sub = t.subcategory || 'other';
     (subcatIndex[sub] ??= []).push({
       slug: t.slug,
@@ -162,25 +231,6 @@ function processObject(jsonText) {
       sort_recent: t.sort_recent ?? 0,
       is_new: true,
     });
-    // New episodic works ALSO get an episode shard + route entry so their
-    // per-episode SSR pages work just like the old catalogue.
-    if (isEpisodic(t)) {
-      const file = slugToFile(t.slug);
-      writeFileSync(join(outDir, `${file}.json`), JSON.stringify(t));
-      manifest[t.slug] = file;
-      episodicCount++;
-      routeIndex.push({
-        s: t.slug,
-        c: t.category,
-        z: [...t.seasons]
-          .filter((season) => Array.isArray(season.episodes) && season.episodes.length > 0)
-          .sort((a, b) => a.season - b.season)
-          .map((season) => [
-            season.season,
-            [...season.episodes].sort((a, b) => a.episode - b.episode).map((e) => e.episode),
-          ]),
-      });
-    }
     return;
   }
 
@@ -269,8 +319,23 @@ stream.on('end', () => {
     console.log(`[episode-shards] similar/${cat}.json -> ${entries.length} titles`);
   }
 
-  // NEW-works artifacts: manifest + per-subcategory slim card indexes.
-  writeFileSync(newManifestPath, JSON.stringify(newManifest));
+  // NEW-works artifacts: bucket files + per-subcategory slim card indexes.
+  // Each bucket is a { slug: Title } map; the runtime loader hashes the slug to
+  // pick the bucket and pulls the work out of it.
+  let bucketFiles = 0;
+  for (const [b, works] of Object.entries(newBuckets)) {
+    writeFileSync(join(newDir, `${b}.json`), JSON.stringify(works));
+    bucketFiles++;
+  }
+  console.log(`[episode-shards] new buckets: ${bucketFiles} files for ${newCount} works (NEW_BUCKETS=${NEW_BUCKETS})`);
+
+  // OLD-works gateway buckets (replaces the static /g pages).
+  let oldGwFiles = 0;
+  for (const [b, works] of Object.entries(oldGwBuckets)) {
+    writeFileSync(join(oldGwDir, `${b}.json`), JSON.stringify(works));
+    oldGwFiles++;
+  }
+  console.log(`[episode-shards] old gateway buckets: ${oldGwFiles} files for ${oldGwCount} works`);
   const subcatCounts = {};
   for (const [sub, entries] of Object.entries(subcatIndex)) {
     // Stable default order: rating-then-recency so listing pages look good
