@@ -592,6 +592,30 @@ export function getRating(title: Title): string | null {
   return rating === null || rating === undefined || rating === '' ? null : String(rating);
 }
 
+/**
+ * Rating with an explicit, truthful SOURCE so the number is never presented as
+ * a bare "score" that a search engine could read as deceptive/fabricated.
+ * Prefers the genuine TMDB vote average (most works carry it), then falls back
+ * to IMDb. Returns null when there is no credible rating to show.
+ */
+export function getRatingInfo(
+  title: Title,
+): { value: string; source: 'TMDB' | 'IMDb'; url: string } | null {
+  const tmdb = (title as any).tmdb_vote;
+  if (tmdb !== null && tmdb !== undefined && Number(tmdb) > 0) {
+    return {
+      value: Number(tmdb).toFixed(1),
+      source: 'TMDB',
+      url: 'https://www.themoviedb.org/',
+    };
+  }
+  const imdb = title.imdb_rating ?? title.rating;
+  if (imdb !== null && imdb !== undefined && imdb !== '' && Number(imdb) > 0) {
+    return { value: String(imdb), source: 'IMDb', url: 'https://www.imdb.com/' };
+  }
+  return null;
+}
+
 export function getServerCount(title: Title): number {
   let count = 0;
   for (const season of title.seasons || []) {

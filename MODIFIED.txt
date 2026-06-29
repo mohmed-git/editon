@@ -1,13 +1,52 @@
-الملفات المعدّلة/المضافة في هذه الجلسة (Phase B):
+ملفات Phase C المعدّلة — سينما بلس
+=====================================
 
-[جديد]   scripts/fix-routes-json.mjs        إصلاح _routes.json (السبب الجذري لتوقّف الفهرسة)
-[معدّل]  package.json                       ربط fix-routes في npm run build
-[معدّل]  public/sw.js                       استبدال الـ ad service worker الضار بآخر يلغي نفسه
-[معدّل]  src/lib/detailContent.ts           إضافة uniquifyPlot() لمنع المحتوى المكرر
-[معدّل]  src/pages/w/[slug].astro           استخدام uniquifyPlot في صفحات /w الـ SSR
-[معدّل]  scripts/data/delete-list.txt       قائمة الـ27 عملاً المراد حذفها
-[معدّل]  src/data/generated/all.json        بعد حذف 27 عملاً (18,559 -> 18,532)
-[معدّل]  README.md                          توثيق إصلاحات الفهرسة
+[جديد] scripts/apply-csv-deletions.mjs
+   سكربت حذف الأعمال المدرجة في ملف CSV (مطابقة بالاسم اللاتيني/العربي + السنة،
+   إزالة التكرار). نتيجة هذه الدفعة: حذف 8,018 عملاً (18,532 → 10,514).
 
-ملاحظة: شاردات public/_data/ تُعاد بناؤها تلقائياً عبر `npm run build`
-(سكربت build-episode-shards.mjs) لذا لم تُضمَّن هنا.
+[جديد] scripts/build-search-index.mjs
+   يبني فهرس بحث ثابت كامل (قديم + جديد) في public/static/search-index.json
+   = 10,445 عنصر (4,950 ثابت + 5,495 جديد SSR). يُشغَّل ضمن خط البناء.
+
+[جديد] scripts/data/csv-delete-list.csv
+   نسخة من ملف الأسماء المرفوع المستخدم في الحذف.
+
+[جديد] public/static/search-index.json
+   فهرس البحث الكامل (يُحمّل بـ fetch من صفحة البحث).
+
+[معدّل] src/pages/search.astro
+   تحميل الفهرس الكامل بـ fetch بدل حقن الكوربس inline → صار البحث يشمل
+   الأعمال الجديدة (نتفليكس وغيرها).
+
+[معدّل] src/pages/x/c/[code].astro
+   إضافة شريط فلاتر (تصنيف + سنة + ترتيب الأعلى تقييماً) مغلق افتراضياً يُفتح
+   عند النقر + بطاقات بتقييم TMDB مرئي + نسب TMDB أسفل القسم.
+
+[معدّل] src/components/PosterCard.astro
+   شارة تقييم TMDB مرئية على البطاقات (عند توفّر تقييم).
+
+[معدّل] src/components/TitleDetailContent.astro
+   صف «التقييم» بمصدر (TMDB/IMDb) + فقرة نسب البيانات إلى TMDB.
+
+[معدّل] src/components/Footer.astro
+   نسب TMDB على مستوى الموقع كله (شرط استخدام TMDB).
+
+[معدّل] src/lib/detailContent.ts
+   دالة getRatingInfo() — تقييم بمصدر صريح (tmdb_vote ثم IMDb).
+
+[معدّل] src/pages/f/[slug].astro , d/[slug].astro , n/[slug].astro , w/[slug].astro
+   استبدال «IMDb/TMDB <رقم>» النصّي بشارة تقييم بمصدر وأيقونة ورابط.
+   (و /w أضيفت فيه فقرة نسب TMDB.)
+
+[معدّل] src/data/generated/all.json
+   الكتالوج بعد الحذف = 10,514 عملاً.
+
+[معدّل] package.json
+   وصل build-search-index.mjs بخطوات prebuild/build/dev.
+
+[معدّل] README.md
+   توثيق Phase C.
+
+ملاحظة: مجلد dist يُعاد بناؤه على Cloudflare CI؛ تأكد أن سكربت build يشغّل
+fix-routes-json.mjs (إصلاح الفهرسة من Phase B لا يزال فعّالاً).

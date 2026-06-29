@@ -9,6 +9,7 @@ interface Props {
 
 const { entry, priority = false } = Astro.props;
 const hasPoster = !!entry.poster;
+const rating = Number((entry as any).rating) || 0;
 
 const qualityFromHash = (() => {
   let h = 0;
@@ -44,6 +45,15 @@ const qualityFromHash = (() => {
       <span class="badge-category">{entry.category_label}</span>
       <span class="badge-hd">{qualityFromHash}</span>
     </div>
+
+    <!-- تقييم TMDB (مصدر مرئي حتى لا يُعتبر نصاً مخادعاً) -->
+    {rating > 0 && (
+      <div class="absolute bottom-[4.2rem] right-2 z-10 flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 backdrop-blur-sm" title="التقييم من TMDB">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        {rating.toFixed(1)}
+        <span class="text-[8px] font-semibold text-gray-300/80">TMDB</span>
+      </div>
+    )}
 
     <!-- تدرج سفلي -->
     <div class="absolute inset-0 bg-gradient-to-t from-surface-0 via-surface-0/40 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-95"></div>

@@ -13,6 +13,7 @@ import {
   cleanBrand,
   getDisplayTitle,
   getRating,
+  getRatingInfo,
   splitGenres,
 } from '../../lib/detailContent';
 
@@ -60,6 +61,7 @@ const pageTitle = buildSeoTitle(title, detailKind);
 const pageDescription = buildMetaDescription(title, detailKind);
 const jsonLdDescription = buildJsonLdDescription(title, detailKind);
 const rating = getRating(title);
+const ratingInfo = getRatingInfo(title);
 const videoUploadDate = title.year ? `${title.year}-01-01` : '2024-01-01';
 
 const jsonLd = {
@@ -120,7 +122,13 @@ const jsonLd = {
         <div class="space-y-5 md:col-span-8 lg:col-span-9">
           <div class="flex flex-wrap items-center gap-2">
             <span class="chip-brand">فيلم</span>
-            {rating && <span class="chip-surface">IMDb {rating}</span>}
+            {ratingInfo && (
+              <span class="chip-surface inline-flex items-center gap-1" title={`التقييم من ${ratingInfo.source}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 text-amber-400"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                {ratingInfo.value}
+                <span class="text-[10px] text-gray-400">{ratingInfo.source}</span>
+              </span>
+            )}
             {title.year && <span class="chip-surface">{title.year}</span>}
             {title.duration && <span class="chip-surface">{title.duration}</span>}
             {title.quality && <span class="badge-quality">{title.quality}</span>}
