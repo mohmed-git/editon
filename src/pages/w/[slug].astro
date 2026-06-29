@@ -14,7 +14,7 @@ import { SITE } from '../../lib/site';
 import { newGatewayRoute, newSeasonRoute, newEpisodeRoute } from '../../lib/routes';
 import { loadNewWork, loadSubcat, type SubcatCard } from '../../lib/newWorks';
 import { SUB_BY_KEY, subcatRoute } from '../../lib/subcategories';
-import { splitGenres } from '../../lib/detailContent';
+import { splitGenres, uniquifyPlot } from '../../lib/detailContent';
 
 const { slug } = Astro.params;
 const title = slug ? await loadNewWork(slug, Astro.url) : undefined;
@@ -37,8 +37,13 @@ if (sub) {
   similar = list.filter((e) => e.slug !== title.slug).slice(0, 12);
 }
 
+const detailKind = title.category === 'movie' ? 'movie' : title.category === 'anime' ? 'anime' : 'series';
+// Uniquified plot so this page does not duplicate the older mirror site's text.
+const uniquePlot = uniquifyPlot(title as any, detailKind as any);
+const displayStory = uniquePlot || title.story || title.description || '';
+
 const pageTitle = `مشاهدة ${kindLabel} ${title.clean_title} مترجم اون لاين`;
-const pageDescription = (title.story || title.description || '').slice(0, 160) ||
+const pageDescription = (displayStory || '').slice(0, 160) ||
   `شاهد ${title.clean_title} مترجم اون لاين بجودة عالية على ${SITE.name}.`;
 
 const jsonLd = {
@@ -120,10 +125,10 @@ function quality(s: string): string {
             </div>
           )}
 
-          {(title.story || title.description) && (
+          {displayStory && (
             <div class="pt-2">
               <h2 class="mb-2 text-lg font-bold text-white">{isMovie ? `قصة فيلم ${title.clean_title}` : `قصة ${title.clean_title}`}</h2>
-              <p class="text-sm leading-relaxed text-gray-300/90">{title.story || title.description}</p>
+              <p class="text-sm leading-relaxed text-gray-300/90">{displayStory}</p>
             </div>
           )}
         </div>

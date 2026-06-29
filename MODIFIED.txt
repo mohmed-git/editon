@@ -1,0 +1,13 @@
+الملفات المعدّلة/المضافة في هذه الجلسة (Phase B):
+
+[جديد]   scripts/fix-routes-json.mjs        إصلاح _routes.json (السبب الجذري لتوقّف الفهرسة)
+[معدّل]  package.json                       ربط fix-routes في npm run build
+[معدّل]  public/sw.js                       استبدال الـ ad service worker الضار بآخر يلغي نفسه
+[معدّل]  src/lib/detailContent.ts           إضافة uniquifyPlot() لمنع المحتوى المكرر
+[معدّل]  src/pages/w/[slug].astro           استخدام uniquifyPlot في صفحات /w الـ SSR
+[معدّل]  scripts/data/delete-list.txt       قائمة الـ27 عملاً المراد حذفها
+[معدّل]  src/data/generated/all.json        بعد حذف 27 عملاً (18,559 -> 18,532)
+[معدّل]  README.md                          توثيق إصلاحات الفهرسة
+
+ملاحظة: شاردات public/_data/ تُعاد بناؤها تلقائياً عبر `npm run build`
+(سكربت build-episode-shards.mjs) لذا لم تُضمَّن هنا.

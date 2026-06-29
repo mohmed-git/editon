@@ -392,8 +392,12 @@ function fitSeoTitle(arabized: string, foreign: string, kind: DetailKind): strin
   return truncateChars(`${left}${separator}${right}${suffix}`, max);
 }
 
-function buildSeoTeaser(title: Title, max: number): string {
-  const story = normalizeWhitespace(cleanBrand(sourceStory(title) || title.description || title.story || ''));
+function buildSeoTeaser(title: Title, max: number, kind: DetailKind = 'movie'): string {
+  // Use the uniquified plot so the meta description differs from the mirror
+  // site; fall back to the raw story/description fields.
+  const story = normalizeWhitespace(
+    cleanBrand(uniquifyPlot(title, kind) || sourceStory(title) || title.description || title.story || '')
+  );
   const fallback = 'قصة مشوقة بتفاصيل واضحة ومشاهدة عالية الجودة، مع معلومات الحلقات والجودة قبل المشاهدة';
   if (!story) return truncateChars(fallback, max);
 
@@ -447,6 +451,110 @@ function truncateWords(text: string, limit: number): string {
   const words = normalizeWhitespace(text).split(' ').filter(Boolean);
   if (words.length <= limit) return words.join(' ');
   return `${words.slice(0, limit).join(' ')}...`;
+}
+
+/* ───────────────────────── plot de-duplication ─────────────────────────
+ * An older mirror site reuses the exact same crawled plot text we ingest, so
+ * publishing those plots verbatim made Google treat our pages as duplicates
+ * of the already-indexed mirror. To keep the meaning intact while making the
+ * primary visible paragraph (and meta/JSON-LD descriptions) genuinely unique,
+ * we wrap the original plot in a deterministic, per-title Arabic framing: a
+ * varied lead-in + a varied closing clause keyed by the slug seed. Same title
+ * → same output (stable for caching/diffs); different titles → different
+ * phrasing; and the block no longer byte-matches the mirror's plain plot.
+ */
+const PLOT_LEAD_INS: Record<DetailKind, string[]> = {
+  movie: [
+    'في هذا الفيلم،',
+    'تدور أحداث الفيلم حيث',
+    'على امتداد الأحداث،',
+    'ضمن خط درامي متصاعد،',
+    'منذ المشاهد الأولى،',
+    'تأخذنا القصة إلى عالم',
+    'تتكشف الحكاية عندما',
+    'يضعنا الفيلم أمام موقف',
+  ],
+  series: [
+    'على مدى حلقات المسلسل،',
+    'تتوالى أحداث المسلسل حيث',
+    'يبني المسلسل عالمه عندما',
+    'مع تتابع المواسم،',
+    'تنطلق القصة من لحظة',
+    'يأخذنا المسلسل إلى',
+    'تتشابك الخيوط حين',
+    'منذ الحلقة الأولى،',
+  ],
+  anime: [
+    'في هذا الأنمي،',
+    'تتطور أحداث الأنمي حيث',
+    'يفتح الأنمي عالمه عندما',
+    'مع تقدّم الحلقات،',
+    'تبدأ الرحلة حين',
+    'يصحبنا الأنمي إلى',
+    'تتصاعد الأحداث عندما',
+    'منذ بداية القصة،',
+  ],
+};
+
+const PLOT_CLOSERS: Record<DetailKind, string[]> = {
+  movie: [
+    'في تجربة مشاهدة تمزج التشويق بالتفاصيل الإنسانية.',
+    'لتقدّم حبكة محكمة تشدّ المشاهد حتى النهاية.',
+    'بأسلوب بصري يمنح كل مشهد وزنه الخاص.',
+    'مع إيقاع يوازن بين الهدوء ولحظات الذروة.',
+    'لتبقى الأحداث مفتوحة على أكثر من احتمال.',
+    'في قالب يجمع بين الحبكة والعاطفة.',
+  ],
+  series: [
+    'لتتشكّل دراما ممتدة تتعمّق مع كل حلقة.',
+    'في بناء سردي يكشف أوراقه تدريجيًا.',
+    'مع تطوّر مستمر للشخصيات والعلاقات.',
+    'لتظل المتابعة مشدودة من موسم لآخر.',
+    'في خط درامي يتسع كلما تقدّمت الحلقات.',
+    'مع مزيج من التوتر والتحولات غير المتوقعة.',
+  ],
+  anime: [
+    'في عالم بصري غنيّ يتطوّر مع كل حلقة.',
+    'لترافق رحلة الشخصيات وهي تتغيّر.',
+    'بمزيج من الحركة والعمق العاطفي.',
+    'مع تصاعد تدريجي يكشف أبعاد القصة.',
+    'في سرد يوازن بين الإثارة والمشاعر.',
+    'لتظل التفاصيل الصغيرة مؤثرة حتى النهاية.',
+  ],
+};
+
+/**
+ * Lower-case first Arabic letter handling is irrelevant in Arabic, so we just
+ * trim trailing punctuation off the plot before splicing it into a sentence.
+ */
+function trimPlotTail(plot: string): string {
+  return normalizeWhitespace(plot).replace(/[.،,؛!؟\s]+$/u, '');
+}
+
+/**
+ * Returns a unique, meaning-preserving version of the source plot for a title.
+ * Deterministic per slug. If there is no usable plot, returns ''.
+ */
+export function uniquifyPlot(title: Title, kind: DetailKind): string {
+  const raw = trimPlotTail(sourceStory(title));
+  if (!raw || raw.length < 30) return '';
+
+  const seed = seedFrom(`plot-${title.slug}`);
+  const leadIn = pick(PLOT_LEAD_INS[kind], seed);
+  const closer = pick(PLOT_CLOSERS[kind], seed, 3);
+
+  // Splice in the lead-in: lower the original's first connector so the sentence
+  // reads naturally after the lead-in (e.g. drop a leading "تدور أحداث"/"تبدأ").
+  const body = raw
+    .replace(/^(?:تدور\s+أحداث\s+[^؛.،]*?حول\s+)/u, '')
+    .replace(/^(?:تدور\s+أحداث\s+)/u, '')
+    .replace(/^(?:تبدأ\s+(?:القصة|الأحداث)\s+(?:عندما|حين|حيث)\s+)/u, '')
+    .replace(/^(?:القصة\s+تدور\s+حول\s+)/u, '')
+    .trim() || raw;
+
+  // Avoid double "،" if the lead-in already ends with one.
+  const sep = /[،,]$/.test(leadIn) ? ' ' : ' ';
+  return `${leadIn}${sep}${body}، ${closer}`.replace(/\s+/g, ' ').trim();
 }
 
 function clampChars(text: string, max = 158): string {
@@ -812,9 +920,12 @@ export function buildMainDescription(title: Title, kind: DetailKind, patternId?:
   const genres = genreText(title, kind);
   const year = title.year ? ` عام ${title.year}` : '';
 
-  // When we have the real plot, the plot itself is the primary paragraph.
+  // When we have the real plot, the plot itself is the primary paragraph —
+  // but wrapped through uniquifyPlot() so it doesn't byte-match the older
+  // mirror site (which reuses the same crawled plot text) and trip Google's
+  // duplicate-content filtering.
   if (title.real_plot) {
-    const plot = normalizeWhitespace(sourceStory(title));
+    const plot = uniquifyPlot(title, kind) || normalizeWhitespace(sourceStory(title));
     if (plot && plot.length >= 40) {
       const meta = kind === 'movie'
         ? `${label} ${genres}${title.country ? ` من إنتاج ${countryTag(title.country)}` : ''}${year}`
@@ -863,9 +974,10 @@ export function buildLongRead(title: Title, kind: DetailKind): string[] {
 
   const paragraphs: string[] = [];
 
-  // Lead paragraph: the real plot verbatim when available, otherwise a generated opener.
+  // Lead paragraph: the real plot when available — uniquified so it no longer
+  // matches the older mirror site's plain plot text — otherwise a generated opener.
   if (title.real_plot) {
-    const plot = normalizeWhitespace(sourceStory(title));
+    const plot = uniquifyPlot(title, kind) || normalizeWhitespace(sourceStory(title));
     if (plot && plot.length >= 40) {
       paragraphs.push(plot);
     }
@@ -1013,13 +1125,13 @@ export function buildMetaDescription(title: Title, kind: DetailKind): string {
   const prefix = `شاهد ${type} ${compactName}${year ? ` ${year}` : ''}: `;
   const suffix = ` مترجم HD على ${BRAND_NAME}.`;
   let teaserLimit = Math.max(50, 152 - prefix.length - suffix.length);
-  let teaser = buildSeoTeaser(title, teaserLimit);
+  let teaser = buildSeoTeaser(title, teaserLimit, kind);
   let result = `${prefix}${teaser}${suffix}`;
 
   // Keep the trust/action suffix intact; never let final truncation cut the brand/domain signal.
   while (result.length > 155 && teaserLimit > 45) {
     teaserLimit -= 5;
-    teaser = buildSeoTeaser(title, teaserLimit);
+    teaser = buildSeoTeaser(title, teaserLimit, kind);
     result = `${prefix}${teaser}${suffix}`;
   }
   if (result.length <= 155) return result;
@@ -1028,6 +1140,8 @@ export function buildMetaDescription(title: Title, kind: DetailKind): string {
 
 export function buildJsonLdDescription(title: Title, kind: DetailKind): string {
   const name = getWorkTitle(title);
-  const base = sourceStory(title) || title.seoContent?.metaDescription || genreText(title, kind);
+  // Prefer the uniquified plot so structured-data descriptions also differ from
+  // the mirror site; fall back to raw story / SEO meta / genres.
+  const base = uniquifyPlot(title, kind) || sourceStory(title) || title.seoContent?.metaDescription || genreText(title, kind);
   return clampChars(`${name}: ${base}`, 260);
 }

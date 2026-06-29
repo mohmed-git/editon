@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "prebuild": "node scripts/build-episode-shards.mjs",
-    "build": "ASTRO_TELEMETRY_DISABLED=1 node scripts/build-episode-shards.mjs && astro build",
+    "build": "ASTRO_TELEMETRY_DISABLED=1 node scripts/build-episode-shards.mjs && astro build && node scripts/fix-routes-json.mjs",
     "dev": "node scripts/build-episode-shards.mjs && astro dev --host 0.0.0.0",
     "preview": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
     "astro": "astro",
