@@ -1,0 +1,76 @@
+# الأعمال المكرَّرة المدموجة (نفس العمل باسمين مختلفين)
+
+**الإجمالي:** 70 نسخة مكررة دُمجت سيرفراتها في المُبقى ثم حُذفت مع redirect 301.
+
+**سيرفرات أُضيفت للمُبقين أثناء الدمج:** 590
+
+- **Hajime No Ippo: Rising** (anime) — أُبقي: `hajime-no-ippo` | حُذف: `hajime-no-ippo-rising`
+- **New PANTY & STOCKING with GARTERBELT** (anime) — أُبقي: `panty-stocking-with-garterbelt` | حُذف: `new-panty-stocking-with-garterbelt`
+- **NARUTO SD ロック・リーの青春フルパワー忍伝** (anime) — أُبقي: `naruto` | حُذف: `naruto-sd-rock-lee-no-seishun-full-power-ninden`
+- **BLUE GIANT** (movie) — أُبقي: `blue-giant-2` | حُذف: `فيلم-blue-giant`
+- **ONE PIECE FILM GOLD** (movie) — أُبقي: `one-piece-film-gold-2` | حُذف: `فيلم-one-piece-film-gold-مترجم`
+- **ONE PIECE FILM RED** (movie) — أُبقي: `one-piece-film-red-2` | حُذف: `فيلم-one-piece-film-red`
+- **ONE PIECE FILM STRONG WORLD** (movie) — أُبقي: `one-piece-strong-world` | حُذف: `فيلم-one-piece-film-strong-world-مترجم`
+- **ONE PIECE FILM Z** (movie) — أُبقي: `one-piece-film-z` | حُذف: `فيلم-one-piece-film-z-مترجم`
+- **Predator: Killer of Killers** (movie) — أُبقي: `predator-killer-of-killers-2` | حُذف: `فيلم-predator-killer-of-killers-مترجم`
+- **プリンセス・プリンシパル Crown Handler 第3章** (movie) — أُبقي: `princess-principal-crown-handler-movie-3-2` | حُذف: `princess-principal-crown-handler-movie-3-3`
+- **THE FIRST SLAM DUNK** (movie) — أُبقي: `the-first-slam-dunk-2` | حُذف: `فيلم-the-first-slam-dunk-مترجم`
+- **The Lord of the Rings: The War of the Rohirrim** (movie) — أُبقي: `the-lord-of-the-rings-the-war-of-the-rohirrim-2` | حُذف: `فيلم-the-lord-of-the-rings-the-war-of-the-rohirrim-مترجم`
+- **The Witcher: Sirens of the Deep** (movie) — أُبقي: `the-witcher-sirens-of-the-deep-2` | حُذف: `فيلم-the-witcher-sirens-of-the-deep-مترجم`
+- **Killers of the Flower Moon** (movie) — أُبقي: `killers-of-the-flower-moon-2023-مترجم-اون-لاين` | حُذف: `the-moon`
+- **Other** (movie) — أُبقي: `other-2025-مترجم-اون-لاين` | حُذف: `the-other`
+- **Revelations** (movie) — أُبقي: `revelations` | حُذف: `2025-revelations`
+- **Demon City 鬼ゴロシ** (movie) — أُبقي: `demon-city-oni-goroshi` | حُذف: `demon-city-2025`
+- **Kuyang: Sekutu Iblis Yang Selalu Mengintai** (movie) — أُبقي: `kuyang` | حُذف: `kuyang-sekutu-iblis-yang-selalu-mengintai-2024`
+- **Tuner** (movie) — أُبقي: `tuner` | حُذف: `tuner-2026`
+- **Carolina Caroline** (movie) — أُبقي: `carolina-caroline` | حُذف: `carolina-caroline-2026`
+- **Blue Heron** (movie) — أُبقي: `blue-heron` | حُذف: `blue-heron-2026`
+- **Hair of the Bear** (movie) — أُبقي: `hair-of-the-bear` | حُذف: `hair-of-the-bear-2026`
+- **Broken Land** (movie) — أُبقي: `broken-land` | حُذف: `broken-land-2024`
+- **Time of Death** (movie) — أُبقي: `time-of-death` | حُذف: `time-of-death-2026`
+- **Pitfall** (movie) — أُبقي: `pitfall` | حُذف: `pitfall-2026`
+- **One Spoon of Chocolate** (movie) — أُبقي: `one-spoon-of-chocolate` | حُذف: `one-spoon-of-chocolate-2026`
+- **Affection** (movie) — أُبقي: `affection` | حُذف: `affection-2026`
+- **True Justice: Eye For An Eye** (movie) — أُبقي: `true-justice-2-eye-for-an-eye` | حُذف: `true-justice-eye-for-an-eye-2026`
+- **Fuze** (movie) — أُبقي: `fuze` | حُذف: `fuze-2026`
+- **The Christophers** (movie) — أُبقي: `the-christophers` | حُذف: `the-christophers-2026`
+- **Death Cycle** (movie) — أُبقي: `death-cycle` | حُذف: `death-cycle-2026`
+- **Fantasy Life** (movie) — أُبقي: `fantasy-life` | حُذف: `fantasy-life-2026`
+- **Couples Weekend** (movie) — أُبقي: `couples-weekend` | حُذف: `couples-weekend-2026`
+- **Driver's Ed** (movie) — أُبقي: `drivers-ed` | حُذف: `driver-s-ed-2026`
+- **Normal** (movie) — أُبقي: `normal` | حُذف: `normal-2026`
+- **Silver Star** (movie) — أُبقي: `silver-star` | حُذف: `silver-star-2025`
+- **The Punisher: One Last Kill** (movie) — أُبقي: `the-punisher-one-last-kill` | حُذف: `a-marvel-television-special-presentation-the-punisher-one-last-kill-2026`
+- **Idiotka** (movie) — أُبقي: `idiotka` | حُذف: `idiotka-2026`
+- **Didn't Die** (movie) — أُبقي: `didnt-die` | حُذف: `didn-t-die-2026`
+- **The King's Daughter** (movie) — أُبقي: `the-kings-daughter` | حُذف: `daughter`
+- **Sound of Freedom** (movie) — أُبقي: `freedom` | حُذف: `sound-of-freedom`
+- **Justice League: Crisis on Infinite Earths Part One** (movie) — أُبقي: `justice-league-crisis-on-infinite-earths-2` | حُذف: `justice-league-crisis-on-infinite-earths`
+- **Ruby Gillman, Teenage Kraken** (movie) — أُبقي: `kraken` | حُذف: `ruby-gillman-teenage-kraken`
+- **The Simpsons: O C'mon All Ye Faithful** (movie) — أُبقي: `the-simpsons-o-cmon-all-ye-faithful` | حُذف: `the-simpsons-o-cmon-all-ye-faithful-2`
+- **Fall in Love Again** (series) — أُبقي: `fall-in-love` | حُذف: `الحب-مجددا-fall-in-love-again-2026`
+- **The Faithful** (series) — أُبقي: `faithful` | حُذف: `the-faithful`
+- **The Good Doctor** (series) — أُبقي: `the-good-doctor` | حُذف: `good-doctor`
+- **When Calls the Heart** (series) — أُبقي: `when-calls-the-heart` | حُذف: `the-heart`
+- **AMERICA'S SWEETHEARTS: Dallas Cowboys Cheerleaders** (series) — أُبقي: `americas-sweethearts` | حُذف: `america-s-sweethearts-dallas-cowboys-cheerleaders`
+- **Destiny** (series) — أُبقي: `destiny-2` | حُذف: `destiny`
+- **The Twelve** (series) — أُبقي: `the-twelve` | حُذف: `twelve`
+- **The Agency** (series) — أُبقي: `the-agency` | حُذف: `agency`
+- **Betty la fea, la historia continúa** (series) — أُبقي: `betty-la-fea-the-story-continues` | حُذف: `betty-la-fea-la-historia-contin-a`
+- **Revival** (series) — أُبقي: `revival` | حُذف: `revival-2`
+- **Familier som vores** (series) — أُبقي: `families-like-ours` | حُذف: `familier-som-vores`
+- **Les Revenants** (series) — أُبقي: `revenant` | حُذف: `les-revenants-2012`
+- **Blindspår** (series) — أُبقي: `blindspar` | حُذف: `blindsp-r-2025`
+- **For Life** (series) — أُبقي: `a-life-for-a-life` | حُذف: `for-life`
+- **SAS Rogue Heroes** (series) — أُبقي: `rogue-heroes` | حُذف: `sas-rogue-heroes`
+- **Nemesis** (series) — أُبقي: `nemesis-2` | حُذف: `nemesis`
+- **Shōgun** (series) — أُبقي: `shogun` | حُذف: `sh-gun`
+- **The Crime Hunters** (series) — أُبقي: `crime-hunt` | حُذف: `crime-hunters`
+- **Frasier** (series) — أُبقي: `frasier-2` | حُذف: `frasier`
+- **I Love That for You** (series) — أُبقي: `love-for-you` | حُذف: `i-love-that-for-you`
+- **Pancho Villa: El centauro del norte** (series) — أُبقي: `pancho-villa-el-centauro-del-norte` | حُذف: `pancho-villa-el-centauro-del-norte-2`
+- **Parallèles** (series) — أُبقي: `parallel-world` | حُذف: `parallels`
+- **Tale of the Nine Tailed Season 2** (series) — أُبقي: `tale-of-the-nine-tailed-2` | حُذف: `tale-of-the-nine-tailed-3`
+- **The Heirs** (series) — أُبقي: `the-heir` | حُذف: `the-heirs`
+- **The Neighbors** (series) — أُبقي: `the-neighbors` | حُذف: `the-neighbor`
+- **Wanted: The Escape of Carlos Ghosn** (series) — أُبقي: `wanted-the-escape-of-carlos-ghosn` | حُذف: `wanted-the-escape-of-carlos-ghosn-2`
