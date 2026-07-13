@@ -1,0 +1,74 @@
+---
+// ============================================================================
+// صفحة البحث — SSR (prerender = false)
+// خفيفة جداً: تصفية فورية على قائمة العناوين المُجهّزة مسبقاً في الذاكرة
+// (لا استدعاء شبكة، لا معالجة ثقيلة) — تحترم حد CPU 10ms.
+// ============================================================================
+export const prerender = false;
+
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import PosterCard from '../components/PosterCard.astro';
+import Icon from '../components/Icon.astro';
+import type { TitleCard } from '../lib/data';
+import { searchSSR } from '../lib/data';
+import { SITE_NAME } from '../lib/seo';
+
+const q = (Astro.url.searchParams.get('q') || '').trim();
+let results: TitleCard[] = [];
+if (q) {
+  results = await searchSSR(q, Astro.url, 60);
+}
+Astro.response.headers.set('Cache-Control', 'public, max-age=60');
+---
+<Base
+  title={q ? `نتائج البحث عن "${q}" — ${SITE_NAME}` : `بحث — ${SITE_NAME}`}
+  description={q ? `نتائج البحث عن "${q}" في مكتبة ${SITE_NAME} من الأفلام والمسلسلات والأنمي.` : `ابحث في مكتبة ${SITE_NAME} عن أفلام ومسلسلات وأنمي مترجمة.`}
+  canonical="/search"
+  robots="noindex, follow"
+>
+  <Nav />
+  <main class="search-main">
+    <div class="container">
+      <h1 class="search-h">
+        {q ? <span>نتائج البحث عن: <b>{q}</b></span> : <span>ابحث في المكتبة</span>}
+      </h1>
+      {q && <p class="search-sub">{results.length} نتيجة</p>}
+
+      {q && results.length > 0 && (
+        <div class="cat-grid">
+          {results.map((c) => <PosterCard card={c} />)}
+        </div>
+      )}
+      {q && results.length === 0 && (
+        <div class="search-empty">
+          <Icon name="search" />
+          <p>لا توجد نتائج مطابقة لـ "{q}". جرّب كلمات أخرى.</p>
+        </div>
+      )}
+      {!q && (
+        <form class="search-form" action="/search" method="get" role="search">
+          <Icon name="search" />
+          <input type="text" name="q" placeholder="اكتب اسم فيلم، مسلسل، أو أنمي..." aria-label="بحث" autofocus />
+          <button type="submit" class="btn btn-primary">بحث</button>
+        </form>
+      )}
+    </div>
+    <Footer />
+  </main>
+</Base>
+
+<style>
+  .search-main { padding-top: 110px; padding-bottom: var(--sp-8); min-height: 70vh; }
+  .search-h { font-size: clamp(28px, 3vw, 40px); font-weight: 900; margin-bottom: var(--sp-2); }
+  .search-h b { color: var(--gold); }
+  .search-sub { color: var(--text-tertiary); margin-bottom: var(--sp-5); }
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--sp-4) var(--sp-3); padding: var(--sp-3) 0; }
+  @media (min-width: 1200px) { .cat-grid { grid-template-columns: repeat(6, 1fr); gap: var(--sp-5) var(--sp-4); } }
+  .search-empty { text-align: center; padding: var(--sp-8) 0; color: var(--text-tertiary); }
+  .search-empty :global(svg) { width: 56px; height: 56px; opacity: 0.3; margin-bottom: var(--sp-3); }
+  .search-form { display: flex; gap: var(--sp-3); align-items: center; max-width: 640px; margin-top: var(--sp-5); background: var(--bg-2); border: 1px solid var(--border); border-radius: 100px; padding: 8px 8px 8px 20px; }
+  .search-form :global(svg) { width: 22px; height: 22px; color: var(--text-tertiary); flex-shrink: 0; }
+  .search-form input { flex: 1; background: none; border: none; color: var(--text-primary); font-family: var(--font-body); font-size: 16px; outline: none; }
+</style>

@@ -1,0 +1,95 @@
+---
+import Icon from './Icon.astro';
+interface Props { active?: string }
+const { active = 'home' } = Astro.props;
+const links = [
+  { id: 'home', label: 'الرئيسية', href: '/' },
+  { id: 'movie', label: 'أفلام', href: '/category/movie' },
+  { id: 'series', label: 'مسلسلات', href: '/category/series' },
+  { id: 'anime', label: 'أنمي', href: '/category/anime' },
+  { id: 'trending', label: 'الأكثر رواجاً', href: '/category/trending' },
+];
+---
+<nav class="nav" id="mainNav">
+  <div class="container nav-inner">
+    <button class="nav-toggle" id="navToggle" type="button" aria-label="القائمة" aria-expanded="false" aria-controls="navLinks">
+      <span class="nav-toggle-bar"></span>
+      <span class="nav-toggle-bar"></span>
+      <span class="nav-toggle-bar"></span>
+    </button>
+    <a href="/" class="logo" aria-label="سينما لايف">
+      <span class="logo-mark"><Icon name="play" /></span>
+      <span>سينما<b>لايف</b></span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      {links.map((l) => (
+        <a href={l.href} class={`nav-link ${l.id === active ? 'active' : ''}`}>{l.label}</a>
+      ))}
+    </div>
+    <form class="nav-search" action="/search" method="get" role="search">
+      <Icon name="search" />
+      <input type="text" name="q" placeholder="ابحث عن فيلم، مسلسل، أنمي..." aria-label="بحث" />
+    </form>
+    <a href="/search" class="nav-search-btn" title="بحث" aria-label="بحث">
+      <Icon name="search" />
+    </a>
+    <a href="/favorites" class="nav-fav" title="المفضلة" aria-label="المفضلة">
+      <Icon name="heart" />
+      <span class="nav-fav-count" id="navFavCount" hidden>0</span>
+    </a>
+  </div>
+</nav>
+
+<script is:inline>
+  (function () {
+    var nav = document.getElementById('mainNav');
+    if (nav) {
+      var onScroll = function () {
+        if (window.scrollY > 40) nav.classList.add('scrolled');
+        else nav.classList.remove('scrolled');
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    }
+    // عدّاد المفضلة في الترويسة (يقرأ من localStorage عبر واجهة CimaFav)
+    function updateFavCount() {
+      var el = document.getElementById('navFavCount');
+      if (!el) return;
+      var n = 0;
+      try {
+        if (window.CimaFav) n = window.CimaFav.count();
+        else n = (JSON.parse(localStorage.getItem('cima:favorites') || '[]') || []).length;
+      } catch (e) { n = 0; }
+      if (n > 0) { el.textContent = n > 99 ? '99+' : String(n); el.hidden = false; }
+      else { el.hidden = true; }
+    }
+    document.addEventListener('DOMContentLoaded', updateFavCount);
+    window.addEventListener('cima:fav-changed', updateFavCount);
+    updateFavCount();
+
+    // قائمة الهاتف (هامبرجر)
+    var toggle = document.getElementById('navToggle');
+    var navLinks = document.getElementById('navLinks');
+    if (toggle && navLinks && nav) {
+      var closeMenu = function () {
+        nav.classList.remove('menu-open');
+        toggle.setAttribute('aria-expanded', 'false');
+      };
+      toggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = nav.classList.toggle('menu-open');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      // إغلاق عند الضغط على رابط أو خارج القائمة
+      navLinks.addEventListener('click', function (e) {
+        if (e.target && e.target.closest('.nav-link')) closeMenu();
+      });
+      document.addEventListener('click', function (e) {
+        if (nav.classList.contains('menu-open') && !e.target.closest('#navLinks') && !e.target.closest('#navToggle')) closeMenu();
+      });
+      window.addEventListener('resize', function () {
+        if (window.innerWidth > 900) closeMenu();
+      });
+    }
+  })();
+</script>

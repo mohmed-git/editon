@@ -1,0 +1,22 @@
+{
+  "name": "webapp",
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "data:parse": "node scripts/parse-csv.mjs",
+    "data:enrich": "node scripts/enrich-tmdb.mjs",
+    "data:rebuild": "LIMIT=0 node scripts/enrich-tmdb.mjs",
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "wrangler pages dev ./dist --ip 0.0.0.0 --port 3000",
+    "deploy": "npm run build && wrangler pages deploy ./dist",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^12.6.0",
+    "astro": "^5.13.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.4.0"
+  }
+}

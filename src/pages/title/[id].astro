@@ -1,0 +1,406 @@
+---
+// ============================================================================
+// صفحة العمل الفردي — SSR (prerender = false)
+// ----------------------------------------------------------------------------
+// كل الأعمال (10,439) تُخدَّم عبر SSR: نجلب shard التفاصيل + shard الحلقات عبر
+// HTTP (أصل واحد لكل نوع) فلا يتضخّم الـ Worker. الأعمال المُثراة من TMDB تعرض
+// بيانات غنية، وغير المُثراة تعرض بياناتها الأساسية (CSV) مع سيرفرات المشاهدة.
+// ============================================================================
+export const prerender = false;
+
+import Base from '../../layouts/Base.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+import PosterCard from '../../components/PosterCard.astro';
+import Icon from '../../components/Icon.astro';
+import { getDetailSSR, getEpisodes, similarSSR } from '../../lib/data';
+import { titlePageTag, titleDescription, titleSchema, displayName } from '../../lib/seo';
+import redirects from '../../data/redirects.json';
+
+const { id } = Astro.params;
+const origin = Astro.url;
+// إعادة توجيه الأعمال القديمة/المدموجة إلى العمل القانوني (301) حفاظاً على الروابط القديمة
+const target = (redirects as Record<string, string>)[id!];
+if (target && target !== id) {
+  return Astro.redirect(`/title/${target}`, 301);
+}
+const T = await getDetailSSR(id!, origin);
+if (!T) {
+  return Astro.redirect('/404', 404);
+}
+const isSeries = T.type !== 'movie';
+const similar = await similarSSR(T, origin, 6);
+const typeWord = T.type === 'movie' ? 'فيلم' : T.type === 'anime' ? 'أنمي' : 'مسلسل';
+
+// الموسم الأول (لعرض قائمة الحلقات على صفحة العمل)
+let firstSeasonNum: number | null = null;
+let episodes: any[] = [];
+if (isSeries) {
+  const eps = await getEpisodes(id!, origin);
+  if (eps) {
+    const keys = Object.keys(eps).map(Number).sort((a, b) => a - b);
+    if (keys.length) {
+      firstSeasonNum = keys[0];
+      episodes = eps[String(firstSeasonNum)] || [];
+    }
+  }
+}
+const watchHref = isSeries ? `/watch/${T.id}` : `/watch/${T.id}/0/0`;
+const dispName = displayName(T);
+
+// مدة العرض بصيغة عربية مقروءة (ساعات ودقائق)
+function fmtRuntime(mins: number | null): string | null {
+  if (!mins || mins <= 0) return null;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h && m) return `${h} س ${m} د`;
+  if (h) return `${h} ساعة`;
+  return `${m} دقيقة`;
+}
+const runtimeText = fmtRuntime(T.runtime);
+const typeWordLong = typeWord === 'فيلم' ? 'الفيلم' : typeWord === 'أنمي' ? 'الأنمي' : 'المسلسل';
+// هل القصة طويلة؟ (لتفعيل "قراءة المزيد")
+const synopsisLong = (T.synopsis || '').length > 260;
+---
+<Base
+  title={titlePageTag(T)}
+  description={titleDescription(T)}
+  canonical={`/title/${T.id}`}
+  ogImage={T.tmdbPoster || T.poster || '/static/placeholder-poster.svg'}
+  ogType={T.type === 'movie' ? 'video.movie' : 'video.tv_show'}
+  schema={titleSchema(T)}
+>
+  <Nav />
+  <main data-screen-label={`صفحة العمل - ${T.title}`}>
+    <section class="title-hero">
+      <div class="title-hero-bg">
+        <img src={T.backdrop || T.poster || '/static/placeholder-poster.svg'} alt={dispName} onerror="this.onerror=null;this.src='/static/placeholder-poster.svg'" />
+      </div>
+      <div class="title-hero-inner">
+        <div class="title-poster"><img src={T.poster || '/static/placeholder-poster.svg'} alt={dispName} width="280" height="420" onerror="this.onerror=null;this.src='/static/placeholder-poster.svg'" /></div>
+        <div class="title-info">
+          <h1>{T.title}</h1>
+          {T.titleEn && T.titleEn !== T.title && <div class="title-name-en">{T.titleEn}</div>}
+          <div class="title-meta">
+            {T.rating != null && (
+              <span class="rating-inline" title="التقييم من TMDB"><Icon name="star" /> <b>{T.rating}</b> <small>TMDB</small></span>
+            )}
+            {T.rating != null && T.voteCount > 0 && <span class="votes">({T.voteCount.toLocaleString('en')} صوت)</span>}
+            <span class="sep"></span>
+            {T.year && <span>{T.year}</span>}
+            {T.country && (<><span class="sep"></span><span>{T.country}</span></>)}
+            {isSeries && T.numberOfSeasons && T.numberOfSeasons > 1 && (<><span class="sep"></span><span>{T.numberOfSeasons} موسم</span></>)}
+            {isSeries && <span>{T.episodeCount} حلقة</span>}
+            {runtimeText && (<><span class="sep"></span><span class="rt"><Icon name="clock" /> {runtimeText}</span></>)}
+            <span class="sep"></span>
+            <span class="chip gold" style="padding:3px 10px;font-size:11px">{T.quality}</span>
+          </div>
+          {T.tagline && <p class="title-tagline">«{T.tagline}»</p>}
+          <div class="title-genres">
+            {(T.genres || []).map((g) => <a href={`/category/${T.type}`} class="chip chip-link">{g}</a>)}
+          </div>
+          {T.synopsis && (
+            <div class={`title-synopsis-wrap${synopsisLong ? ' is-clamped' : ''}`} data-synopsis>
+              <p class="title-synopsis">{T.synopsis}</p>
+              {synopsisLong && <button type="button" class="synopsis-more" data-synopsis-toggle>قراءة المزيد</button>}
+            </div>
+          )}
+          <div class="title-actions">
+            <a href={watchHref} class="btn btn-primary btn-lg"><Icon name="play" /> <span>مشاهدة الآن</span></a>
+            <button
+              class="btn btn-ghost fav-toggle"
+              type="button"
+              data-fav-btn
+              data-fav-id={T.id}
+              data-fav-title={T.title}
+              data-fav-poster={T.poster}
+              data-fav-type={T.type}
+              data-fav-year={T.year ?? ''}
+              data-fav-rating={T.rating ?? ''}
+              aria-pressed="false"
+            >
+              <Icon name="heart" />
+              <span class="fav-label-add">أضف للمفضلة</span>
+              <span class="fav-label-remove">في المفضلة</span>
+            </button>
+            <button class="btn btn-ghost btn-icon share-btn" type="button" data-share-btn
+              data-share-title={dispName} data-share-url={`https://cima-liveapp.site/title/${T.id}`}
+              title="مشاركة" aria-label="مشاركة">
+              <Icon name="share" />
+              <span class="share-label">مشاركة</span>
+            </button>
+          </div>
+          <div class="title-credits">
+            {T.creators.length > 0 && (<>
+              <span class="credit-key">{T.type === 'movie' ? 'المخرج:' : 'صناع العمل:'}</span>
+              <span class="credit-val">{T.creators.join(' · ')}</span>
+            </>)}
+            <span class="credit-key">التصنيفات:</span>
+            <span class="credit-val">{(T.genres || []).join(' · ') || '—'}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- معلومات العمل (جدول تفصيلي مثل الصفحة المرجعية) -->
+    <section class="info-section">
+      <div class="info-section-inner">
+        <h2 class="section-h">معلومات {typeWord === 'فيلم' ? 'الفيلم' : typeWord === 'أنمي' ? 'الأنمي' : 'المسلسل'}</h2>
+        <div class="info-grid">
+          {T.creators.length > 0 && <div class="info-item"><span class="k">{T.type === 'movie' ? 'المخرج' : 'المنشئ'}</span><span class="v">{T.creators.join('، ')}</span></div>}
+          {runtimeText && <div class="info-item"><span class="k">مدة العرض</span><span class="v">{runtimeText}</span></div>}
+          {T.country && <div class="info-item"><span class="k">الدولة</span><span class="v">{T.country}</span></div>}
+          {T.year && <div class="info-item"><span class="k">السنة</span><span class="v">{T.year}</span></div>}
+          <div class="info-item"><span class="k">النوع</span><span class="v">{typeWord}</span></div>
+          <div class="info-item"><span class="k">التصنيف</span><span class="v">{(T.genres || []).join('، ') || '—'}</span></div>
+          <div class="info-item"><span class="k">الجودة</span><span class="v">{T.quality}</span></div>
+          <div class="info-item"><span class="k">اللغة</span><span class="v">{T.language}</span></div>
+          {isSeries && T.numberOfSeasons && T.numberOfSeasons > 1 && <div class="info-item"><span class="k">عدد المواسم</span><span class="v">{T.numberOfSeasons}</span></div>}
+          {isSeries && <div class="info-item"><span class="k">عدد الحلقات</span><span class="v">{T.episodeCount}</span></div>}
+          {T.rating != null && <div class="info-item"><span class="k">التقييم</span><span class="v" title="التقييم من TMDB">{T.rating} / 10 <small>(TMDB)</small></span></div>}
+        </div>
+      </div>
+    </section>
+
+    {T.cast.length > 0 && (
+      <section class="cast-section">
+        <div class="cast-section-inner">
+          <h2 class="section-h"><Icon name="users" /> طاقم التمثيل</h2>
+          <div class="cast-grid">
+            {T.cast.slice(0, 12).map((c) => (
+              <div class="cast-card">
+                <div class="cast-photo">
+                  {c.profile
+                    ? <img src={c.profile} alt={c.name} loading="lazy" width="120" height="180" onerror="this.onerror=null;this.parentNode.classList.add('no-photo')" />
+                    : <span class="cast-initial">{(c.name || '؟').trim().charAt(0)}</span>}
+                </div>
+                <div class="cast-name-txt">{c.name}</div>
+                {c.character && <div class="cast-char">{c.character}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    {isSeries && episodes.length > 0 && (
+      <section class="episodes-section">
+        <div class="episodes-section-inner">
+          <div class="season-tabs">
+            <h2>الحلقات</h2>
+            {T.seasons && T.seasons.length > 1 && (
+              <select class="season-select" id="titleSeasonSelect">
+                {T.seasons.map((s) => (
+                  <option value={s.num} selected={s.num === firstSeasonNum}>الموسم {s.num} · {s.episodes} حلقة</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div class="episodes-list">
+            {episodes.map((ep) => (
+              <a class="episode-card" href={`/watch/${T.id}/${firstSeasonNum}/${ep.num}`}>
+                <div class="episode-number">{String(ep.num).padStart(2, '0')}</div>
+                {ep.still && (
+                  <div class="episode-thumb">
+                    <img src={ep.still} alt={ep.name} loading="lazy" />
+                    <div class="episode-thumb-icon"><Icon name="playCircle" /></div>
+                  </div>
+                )}
+                <div class="episode-info">
+                  <h3>{ep.name}</h3>
+                  {ep.synopsis && <p>{ep.synopsis}</p>}
+                </div>
+                {ep.rating != null && ep.voteCount > 0 && (
+                  <div class="episode-rating" title="تقييم الحلقة من TMDB"><Icon name="star" /> {ep.rating} <small>TMDB</small></div>
+                )}
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    {similar.length > 0 && (
+      <section class="similar-section">
+        <div class="similar-section-inner">
+          <h2 class="section-h">أعمال مشابهة</h2>
+          <div class="similar-grid">
+            {similar.map((c) => <PosterCard card={c} />)}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <Footer />
+  </main>
+</Base>
+
+<script is:inline define:vars={{ titleId: T.id }}>
+  // تبديل الموسم: التنقل لأول حلقة في الموسم المختار (SSR ستتكفل بعرضها)
+  var sel = document.getElementById('titleSeasonSelect');
+  if (sel) {
+    sel.addEventListener('change', function () {
+      location.href = '/watch/' + titleId + '/' + this.value + '/1';
+    });
+  }
+  // ملاحظة: تبديل الموسم على صفحة العمل ينتقل لأول حلقة في الموسم (SSR).
+
+  // قراءة المزيد للقصة
+  var synToggle = document.querySelector('[data-synopsis-toggle]');
+  if (synToggle) {
+    synToggle.addEventListener('click', function () {
+      var wrap = document.querySelector('[data-synopsis]');
+      if (!wrap) return;
+      var open = wrap.classList.toggle('is-open');
+      wrap.classList.toggle('is-clamped', !open);
+      synToggle.textContent = open ? 'عرض أقل' : 'قراءة المزيد';
+    });
+  }
+
+  // مشاركة العمل (Web Share API مع fallback للنسخ)
+  var shareBtn = document.querySelector('[data-share-btn]');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', async function () {
+      var url = shareBtn.getAttribute('data-share-url');
+      var title = shareBtn.getAttribute('data-share-title');
+      if (navigator.share) {
+        try { await navigator.share({ title: title, url: url }); } catch (e) {}
+      } else if (navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(url);
+          shareBtn.classList.add('copied');
+          var lbl = shareBtn.querySelector('.share-label');
+          if (lbl) { var old = lbl.textContent; lbl.textContent = 'تم النسخ!'; setTimeout(function () { lbl.textContent = old; shareBtn.classList.remove('copied'); }, 1800); }
+        } catch (e) {}
+      }
+    });
+  }
+</script>
+
+<style>
+  .title-hero { position: relative; min-height: 88vh; padding-top: 100px; margin-bottom: var(--sp-6); }
+  .title-hero-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+  .title-hero-bg img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+  .title-hero-bg::after {
+    content: ''; position: absolute; inset: 0;
+    background:
+      linear-gradient(90deg, rgba(11,18,32,0.05) 0%, rgba(11,18,32,0.7) 50%, rgba(11,18,32,0.95) 100%),
+      linear-gradient(180deg, rgba(11,18,32,0.7) 0%, transparent 20%, transparent 40%, rgba(11,18,32,1) 100%);
+  }
+  .title-hero-inner {
+    position: relative; z-index: 2; display: grid; grid-template-columns: 280px 1fr;
+    gap: var(--sp-6); align-items: flex-end; padding: 200px var(--sp-6) var(--sp-7);
+    max-width: 1600px; margin: 0 auto;
+  }
+  .title-poster { aspect-ratio: 2/3; border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-elevated); border: 1px solid var(--border-strong); }
+  .title-poster img { width: 100%; height: 100%; object-fit: cover; }
+  .title-info h1 { font-size: clamp(40px,5vw,68px); font-weight: 900; line-height: 1.05; margin-bottom: 4px; text-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+  .title-name-en { color: var(--text-tertiary); font-size: 16px; font-weight: 300; margin-bottom: var(--sp-4); letter-spacing: 0.02em; }
+  .title-meta { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4); font-size: 14px; color: var(--text-secondary); }
+  .title-meta > span { display: inline-flex; align-items: center; gap: 6px; }
+  .title-meta .sep { width: 3px; height: 3px; background: var(--text-muted); border-radius: 50%; }
+  .title-meta .rating-inline b { color: var(--gold); font-family: var(--font-heading); }
+  .title-meta .votes { color: var(--text-tertiary); font-size: 12px; }
+  .title-meta .rt { color: var(--text-secondary); }
+  .title-meta .rt :global(svg) { width: 14px; height: 14px; opacity: .7; }
+  .title-tagline { font-size: 17px; font-style: italic; color: var(--gold); opacity: .92; margin-bottom: var(--sp-4); max-width: 720px; }
+  .title-genres { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: var(--sp-5); }
+  .chip-link { text-decoration: none; transition: all var(--t-fast); }
+  .chip-link:hover { background: var(--gold-dim); border-color: var(--gold); color: var(--gold); }
+  .title-synopsis-wrap { max-width: 720px; margin-bottom: var(--sp-5); }
+  .title-synopsis { font-size: 16px; line-height: 1.75; color: var(--text-secondary); text-wrap: pretty; }
+  .title-synopsis-wrap.is-clamped .title-synopsis { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .title-synopsis-wrap.is-open .title-synopsis { display: block; }
+  .synopsis-more { background: none; border: none; color: var(--gold); font-weight: 700; font-size: 13px; cursor: pointer; padding: 6px 0 0; font-family: inherit; }
+  .synopsis-more:hover { text-decoration: underline; }
+  .btn-icon .share-label { }
+  .share-btn.copied { color: var(--gold); border-color: var(--gold); }
+
+  /* طاقم التمثيل بالصور */
+  .cast-section { padding: 0 var(--sp-6); margin-bottom: var(--sp-7); }
+  .cast-section-inner { max-width: 1600px; margin: 0 auto; }
+  .cast-section .section-h { display: flex; align-items: center; gap: 10px; }
+  .cast-section .section-h :global(svg) { width: 22px; height: 22px; color: var(--gold); }
+  .cast-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--sp-4); }
+  .cast-card { text-align: center; }
+  .cast-photo { position: relative; aspect-ratio: 2/3; border-radius: var(--r-md); overflow: hidden; background: var(--bg-3); border: 1px solid var(--border); margin-bottom: 10px; transition: transform var(--t-fast), border-color var(--t-fast); display: flex; align-items: center; justify-content: center; }
+  .cast-card:hover .cast-photo { transform: translateY(-4px); border-color: var(--gold-dim); }
+  .cast-photo img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+  .cast-photo.no-photo img { display: none; }
+  .cast-initial { font-family: var(--font-heading); font-weight: 900; font-size: 40px; color: var(--text-muted); }
+  .cast-name-txt { font-size: 13px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+  .cast-char { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; line-height: 1.3; }
+  .title-actions { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }
+  .title-credits { display: grid; grid-template-columns: auto 1fr; gap: 8px var(--sp-4); margin-top: var(--sp-5); padding-top: var(--sp-5); border-top: 1px solid var(--border); max-width: 720px; font-size: 13px; }
+  .credit-key { color: var(--text-tertiary); font-weight: 500; }
+  .credit-val { color: var(--text-primary); }
+  .credit-val .cast-name { display: inline-block; padding: 2px 0; margin-inline-end: 4px; }
+  .credit-val .cast-name:not(:last-child)::after { content: '·'; color: var(--text-muted); margin-inline-start: 6px; }
+
+  .episodes-section { padding: 0 var(--sp-6); margin-bottom: var(--sp-8); }
+  .episodes-section-inner { max-width: 1600px; margin: 0 auto; }
+  .season-tabs { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); margin-bottom: var(--sp-5); flex-wrap: wrap; }
+  .season-tabs h2 { font-size: 24px; font-weight: 800; }
+  .season-select {
+    padding: 10px 40px 10px 20px; background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text-primary); font-family: var(--font-heading); font-weight: 700; font-size: 14px; cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='%23E8B547'%3E%3Cpath d='M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: left 14px center;
+  }
+  .episodes-list { display: grid; gap: var(--sp-3); }
+  .episode-card {
+    display: grid; grid-template-columns: 60px 200px 1fr auto; align-items: center; gap: var(--sp-4);
+    padding: var(--sp-3); background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-md);
+    cursor: pointer; transition: all var(--t-fast); color: inherit; text-decoration: none;
+  }
+  .episode-card:hover { background: var(--bg-3); border-color: var(--gold-dim); }
+  .episode-number { font-family: var(--font-heading); font-weight: 900; font-size: 36px; color: var(--text-tertiary); text-align: center; line-height: 1; }
+  .episode-thumb { position: relative; width: 200px; height: 112px; border-radius: 8px; overflow: hidden; background: var(--bg-3); }
+  .episode-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .episode-thumb::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,0.4), transparent); }
+  .episode-thumb-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: white; opacity: 0; transition: opacity var(--t-fast); }
+  .episode-thumb-icon :global(svg) { width: 40px; height: 40px; }
+  .episode-card:hover .episode-thumb-icon { opacity: 1; color: var(--gold); }
+  .episode-info h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: var(--text-primary); }
+  .episode-info p { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .episode-duration { color: var(--text-tertiary); font-size: 13px; font-weight: 500; padding: 4px 12px; background: rgba(255,255,255,0.04); border-radius: 100px; white-space: nowrap; }
+  .episode-rating { display: inline-flex; align-items: center; gap: 5px; color: var(--gold); font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .episode-rating :global(svg) { width: 15px; height: 15px; }
+  .episode-rating small { color: var(--text-tertiary); font-weight: 400; font-size: 10px; }
+  .rating-inline small { color: var(--text-tertiary); font-weight: 400; font-size: 10px; margin-inline-start: 2px; }
+
+  .info-section { padding: 0 var(--sp-6); margin-bottom: var(--sp-7); }
+  .info-section-inner { max-width: 1600px; margin: 0 auto; }
+  .section-h { font-size: 24px; font-weight: 800; margin-bottom: var(--sp-4); }
+  .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--sp-3); }
+  .info-item { display: flex; flex-direction: column; gap: 4px; padding: var(--sp-3); background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-md); }
+  .info-item .k { color: var(--text-tertiary); font-size: 12px; font-weight: 500; }
+  .info-item .v { color: var(--text-primary); font-size: 14px; font-weight: 600; }
+  .info-item .v small { color: var(--text-tertiary); font-weight: 400; }
+
+  .similar-section { padding: 0 var(--sp-6); }
+  .similar-section-inner { max-width: 1600px; margin: 0 auto; }
+  .similar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--sp-4); }
+  @media (min-width: 1200px) { .similar-grid { grid-template-columns: repeat(6, 1fr); } }
+  @media (max-width: 900px) {
+    .title-hero { min-height: 0; padding-top: 76px; }
+    .title-hero-inner { grid-template-columns: 1fr; padding-top: 0; }
+    .title-poster { max-width: 180px; margin: 0 auto; }
+    .title-info { text-align: center; }
+    .title-actions { justify-content: center; }
+    .title-credits { max-width: 100%; text-align: start; }
+    .episodes-section, .similar-section, .cast-section { padding: 0 var(--sp-4); }
+    .cast-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--sp-3); }
+    .title-tagline { text-align: center; }
+    .title-synopsis-wrap { max-width: 100%; }
+    .episode-card { grid-template-columns: 44px 1fr auto; gap: var(--sp-3); }
+    .episode-thumb { display: none; }
+    .episode-number { font-size: 26px; }
+    .season-tabs h2 { font-size: 20px; }
+  }
+  @media (max-width: 480px) {
+    .title-actions { flex-direction: column; align-items: stretch; }
+    .title-actions .btn { width: 100%; justify-content: center; }
+    .title-poster { max-width: 150px; }
+  }
+</style>

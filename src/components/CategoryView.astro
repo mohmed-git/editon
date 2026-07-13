@@ -1,0 +1,367 @@
+---
+// ============================================================================
+// مكوّن عرض القسم — Static (prerender)
+// ----------------------------------------------------------------------------
+// يُستخدم من /category/[slug] (صفحة 1) و /category/[slug]/[page] (صفحة N).
+// كل صفحة تُطبع كروتها كاملة في الـ HTML وقت البناء (لا SSR، لا fetch وقت الطلب)
+// ⇒ لا مشكلة كاش CDN إطلاقاً؛ الصور دائماً مطابقة لآخر بناء.
+// الترقيم روابط ثابتة (<a>) للأرشفة والـ SEO. الفلترة/الترتيب client-side فوق
+// فهرس القسم الكامل المضمَّن في الصفحة (بلا طلب شبكة).
+// ============================================================================
+import Nav from './Nav.astro';
+import Footer from './Footer.astro';
+import Icon from './Icon.astro';
+import type { TitleCard, CatMetaStatic, CatIndexRow } from '../lib/data-static';
+
+interface Props {
+  slug: string;
+  page: number;
+  meta: CatMetaStatic;
+  cards: TitleCard[];
+  indexRows: CatIndexRow[];
+  label: string;
+  title: string;
+  subtitle: string;
+  navActive: string;
+}
+
+const { slug, page, meta, cards, indexRows, label, title, subtitle, navActive } = Astro.props;
+const { pages, pageSize, total, genres: genreList, years: yearList } = meta;
+
+// روابط الصفحات الثابتة: الصفحة 1 = /category/slug ، الباقي = /category/slug/N
+const pageHref = (p: number) => (p <= 1 ? `/category/${slug}` : `/category/${slug}/${p}`);
+
+// نافذة أرقام الترقيم (نفس منطق العرض السابق: 1 … [page-2..page+2] … last)
+const win = 2;
+const nums: number[] = [];
+for (let i = 1; i <= pages; i++) {
+  if (i === 1 || i === pages || (i >= page - win && i <= page + win)) nums.push(i);
+}
+---
+<Nav active={navActive} />
+<main
+  data-screen-label={`صفحة القسم - ${title}`}
+  data-slug={slug}
+  data-page={page}
+  data-pages={pages}
+  data-total={total}
+  data-pagesize={pageSize}
+>
+  <div class="container">
+    <!-- ترويسة القسم -->
+    <header class="cat-header">
+      <div class="cat-header-inner">
+        <div>
+          <span class="cat-kicker">{label}</span>
+          <h1 class="cat-title">{title}{page > 1 ? ` — صفحة ${page}` : ''}</h1>
+          <p class="cat-subtitle">{subtitle}</p>
+        </div>
+        <div class="cat-stat">
+          <b id="statCount">{total.toLocaleString('en')}</b>
+          <span>عمل متاح</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- شريط الفلاتر: تصنيف / سنة / ترتيب -->
+    <section class="cat-filters" aria-label="تصفية النتائج">
+      <div class="filters-head">
+        <span class="filters-title"><Icon name="filter" /> تصفية النتائج <b id="filterCount">{total.toLocaleString('en')}</b></span>
+        <button type="button" class="filters-reset" id="filtersReset" hidden>إزالة الفلاتر</button>
+      </div>
+      <div class="filters-row">
+        {genreList.length > 0 && (
+          <div class="filter-field">
+            <label for="fGenre">التصنيف</label>
+            <select id="fGenre" class="filter-select">
+              <option value="">كل التصنيفات</option>
+              {genreList.map((g) => <option value={g}>{g}</option>)}
+            </select>
+          </div>
+        )}
+        {yearList.length > 0 && (
+          <div class="filter-field">
+            <label for="fYear">سنة الإصدار</label>
+            <select id="fYear" class="filter-select">
+              <option value="">كل السنوات</option>
+              {yearList.map((y) => <option value={y}>{y}</option>)}
+            </select>
+          </div>
+        )}
+        <div class="filter-field">
+          <label for="fSort">الترتيب</label>
+          <select id="fSort" class="filter-select">
+            <option value="default">الافتراضي</option>
+            <option value="rating">الأعلى تقييماً</option>
+            <option value="year-desc">الأحدث سنة</option>
+            <option value="year-asc">الأقدم سنة</option>
+            <option value="title">أبجدي (A-Z)</option>
+          </select>
+        </div>
+      </div>
+      {page > 1 && (
+        <p class="filter-note">ملاحظة: الفلترة تُطبّق على كامل القسم من أي صفحة.</p>
+      )}
+    </section>
+
+    <!-- شبكة الأعمال: مطبوعة بالكامل وقت البناء -->
+    <div class="cat-grid" id="catGrid">
+      {cards.map((card, i) => (
+        <a class="pc" href={`/title/${encodeURIComponent(card.id)}`}>
+          <div class="pc-thumb">
+            <img
+              loading={i < 12 ? 'eager' : 'lazy'}
+              decoding="async"
+              width="320"
+              height="480"
+              src={card.poster || '/static/placeholder-poster.svg'}
+              alt={card.title}
+              onerror="this.onerror=null;this.src='/static/placeholder-poster.svg'"
+            />
+            {card.rating != null && (
+              <span class="pc-rating"><Icon name="star" /> {card.rating}</span>
+            )}
+          </div>
+          <div class="pc-body">
+            <h3 class="pc-title">{card.title}</h3>
+            {card.titleEn && card.titleEn !== card.title && <span class="pc-sub">{card.titleEn}</span>}
+            {card.year && <span class="pc-year">{card.year}</span>}
+          </div>
+        </a>
+      ))}
+    </div>
+    <p class="no-results" id="noResults" hidden>لا توجد أعمال تطابق هذه الفلاتر. جرّب تغييرها أو إزالتها.</p>
+
+    <!-- الترقيم: روابط ثابتة (تُستبدل بأزرار عند تفعيل الفلترة client-side) -->
+    <nav class="pagination" id="pagination" aria-label="تنقل الصفحات">
+      {pages > 1 && (
+        <>
+          {page > 1
+            ? <a class="page-btn" href={pageHref(page - 1)} rel="prev" aria-label="السابق">‹</a>
+            : <span class="page-btn disabled">‹</span>}
+          {nums.map((i, idx) => (
+            <>
+              {idx > 0 && i - nums[idx - 1] > 1 && <span class="page-ellipsis">…</span>}
+              {i === page
+                ? <span class="page-btn active" aria-current="page">{i}</span>
+                : <a class="page-btn" href={pageHref(i)}>{i}</a>}
+            </>
+          ))}
+          {page < pages
+            ? <a class="page-btn" href={pageHref(page + 1)} rel="next" aria-label="التالي">›</a>
+            : <span class="page-btn disabled">›</span>}
+        </>
+      )}
+    </nav>
+  </div>
+  <Footer />
+</main>
+
+<!-- فهرس القسم الكامل مضمَّن للفلترة client-side (بلا طلب شبكة) -->
+<script type="application/json" id="catIndexData" set:html={JSON.stringify(indexRows)}></script>
+
+<script is:inline define:vars={{ slug, pageSize, curPage: page }}>
+  (function () {
+    var grid = document.getElementById('catGrid');
+    if (!grid) return;
+    var noRes = document.getElementById('noResults');
+    var pag = document.getElementById('pagination');
+    var fGenre = document.getElementById('fGenre');
+    var fYear = document.getElementById('fYear');
+    var fSort = document.getElementById('fSort');
+    var resetBtn = document.getElementById('filtersReset');
+    var statCount = document.getElementById('statCount');
+    var filterCount = document.getElementById('filterCount');
+    var PLACEHOLDER = '/static/placeholder-poster.svg';
+
+    var dataEl = document.getElementById('catIndexData');
+    var ALL = [];
+    try { ALL = JSON.parse(dataEl.textContent || '[]'); } catch (e) { ALL = []; }
+
+    var filtered = [];
+    var page = 1;
+    var filterActive = false;
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+    function cardHTML(row) {
+      var id = row[0], title = row[1], titleEn = row[2], year = row[3], rating = row[4], poster = row[5] || PLACEHOLDER;
+      var sub = titleEn && titleEn !== title ? '<span class="pc-sub">' + esc(titleEn) + '</span>' : '';
+      var badge = rating ? '<span class="pc-rating"><svg viewBox="0 0 24 24" width="12" height="12" fill="#E8B547"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>' + Number(rating).toFixed(1) + '</span>' : '';
+      var yr = year ? '<span class="pc-year">' + year + '</span>' : '';
+      return '<a class="pc" href="/title/' + encodeURIComponent(id) + '">' +
+        '<div class="pc-thumb"><img loading="lazy" decoding="async" width="320" height="480" src="' + esc(poster) + '" alt="' + esc(title) + '" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER + '\'">' + badge + '</div>' +
+        '<div class="pc-body"><h3 class="pc-title">' + esc(title) + '</h3>' + sub + yr + '</div></a>';
+    }
+
+    function applyFilters() {
+      var g = fGenre ? fGenre.value : '';
+      var y = fYear ? fYear.value : '';
+      var sort = fSort ? fSort.value : 'default';
+      filterActive = !!(g || y || (sort && sort !== 'default'));
+
+      // بلا فلاتر: نعود للعرض الثابت الأصلي المطبوع من الخادم (لا نلمس DOM ولا الترقيم)
+      if (!filterActive) {
+        if (resetBtn) resetBtn.hidden = true;
+        // نعيد بناء هذه الصفحة كما بُنيت من الخادم للحفاظ على التطابق
+        renderStaticSlice();
+        return;
+      }
+
+      filtered = ALL.filter(function (r) {
+        if (g && (r[6] || '').split('|').indexOf(g) === -1) return false;
+        if (y && String(r[3]) !== String(y)) return false;
+        return true;
+      });
+      if (sort === 'rating') filtered.sort(function (a, b) { return (b[4] || 0) - (a[4] || 0); });
+      else if (sort === 'year-desc') filtered.sort(function (a, b) { return (b[3] || 0) - (a[3] || 0); });
+      else if (sort === 'year-asc') filtered.sort(function (a, b) { return (a[3] || 9999) - (b[3] || 9999); });
+      else if (sort === 'title') filtered.sort(function (a, b) { return String(a[1] || '').localeCompare(String(b[1] || '')); });
+      page = 1;
+      if (resetBtn) resetBtn.hidden = false;
+      render();
+    }
+
+    // عند إزالة الفلاتر: نعيد رسم شريحة هذه الصفحة الثابتة من الفهرس (بنفس ترتيب الخادم)
+    function renderStaticSlice() {
+      var start = (curPage - 1) * pageSize;
+      var slice = ALL.slice(start, start + pageSize);
+      grid.innerHTML = slice.map(cardHTML).join('');
+      if (noRes) noRes.hidden = true;
+      if (filterCount) filterCount.textContent = ALL.length.toLocaleString('en');
+      restoreStaticPagination();
+    }
+
+    function render() {
+      var total = filtered.length;
+      var pages = Math.max(1, Math.ceil(total / pageSize));
+      if (page > pages) page = pages;
+      var slice = filtered.slice((page - 1) * pageSize, page * pageSize);
+      grid.innerHTML = slice.map(cardHTML).join('');
+      if (noRes) noRes.hidden = total !== 0;
+      if (filterCount) filterCount.textContent = total.toLocaleString('en');
+      renderPagination(pages);
+      if (page > 1) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ترقيم الفلترة (أزرار JS داخل الصفحة الحالية)
+    function renderPagination(pages) {
+      if (!pag) return;
+      if (pages <= 1) { pag.innerHTML = ''; return; }
+      var html = '';
+      var win = 2;
+      html += btn(page > 1 ? page - 1 : 0, '‹', page <= 1);
+      var last = 0;
+      for (var i = 1; i <= pages; i++) {
+        if (i === 1 || i === pages || (i >= page - win && i <= page + win)) {
+          if (last && i - last > 1) html += '<span class="page-ellipsis">…</span>';
+          html += btn(i, String(i), false, i === page);
+          last = i;
+        }
+      }
+      html += btn(page < pages ? page + 1 : 0, '›', page >= pages);
+      pag.innerHTML = html;
+      Array.prototype.forEach.call(pag.querySelectorAll('button[data-p]'), function (b) {
+        b.addEventListener('click', function () { page = parseInt(b.getAttribute('data-p'), 10); render(); });
+      });
+    }
+    function btn(p, label, disabled, active) {
+      if (disabled) return '<span class="page-btn disabled">' + label + '</span>';
+      return '<button class="page-btn ' + (active ? 'active' : '') + '" data-p="' + p + '">' + label + '</button>';
+    }
+
+    // نحفظ ترقيم الخادم الثابت (روابط <a>) لاستعادته عند إزالة الفلاتر
+    var staticPaginationHTML = pag ? pag.innerHTML : '';
+    function restoreStaticPagination() { if (pag) pag.innerHTML = staticPaginationHTML; }
+
+    if (statCount) statCount.textContent = ALL.length.toLocaleString('en');
+    if (filterCount) filterCount.textContent = ALL.length.toLocaleString('en');
+
+    if (fGenre) fGenre.addEventListener('change', applyFilters);
+    if (fYear) fYear.addEventListener('change', applyFilters);
+    if (fSort) fSort.addEventListener('change', applyFilters);
+    if (resetBtn) resetBtn.addEventListener('click', function () {
+      if (fGenre) fGenre.value = '';
+      if (fYear) fYear.value = '';
+      if (fSort) fSort.value = 'default';
+      applyFilters();
+    });
+  })();
+</script>
+
+<style>
+  main { padding-top: 100px; padding-bottom: var(--sp-8); }
+
+  /* ترويسة القسم */
+  .cat-header {
+    padding: var(--sp-6) 0;
+    background: linear-gradient(180deg, var(--gold-dim), transparent);
+    border-bottom: 1px solid var(--border); margin-bottom: var(--sp-5);
+  }
+  .cat-header-inner { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--sp-5); flex-wrap: wrap; }
+  .cat-kicker { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: 2px; color: var(--gold); text-transform: uppercase; margin-bottom: 6px; }
+  .cat-title { font-size: clamp(32px,4vw,50px); font-weight: 900; margin-bottom: var(--sp-2); line-height: 1.1; }
+  .cat-subtitle { color: var(--text-secondary); font-size: 15px; max-width: 560px; }
+  .cat-stat { text-align: center; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 12px; padding: 12px 22px; }
+  .cat-stat b { display: block; font-size: 30px; font-weight: 900; color: var(--gold); font-family: var(--font-heading); }
+  .cat-stat span { font-size: 12px; color: var(--text-tertiary); }
+
+  /* شريط الفلاتر */
+  .cat-filters { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 14px; padding: var(--sp-4) var(--sp-5); margin-bottom: var(--sp-5); }
+  .filters-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-4); gap: var(--sp-3); flex-wrap: wrap; }
+  .filters-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--text-primary); }
+  .filters-title :global(svg) { width: 18px; height: 18px; color: var(--gold); }
+  .filters-title b { color: var(--gold); font-family: var(--font-heading); }
+  .filters-reset { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all var(--t-fast); font-family: var(--font-body); }
+  .filters-reset:hover { border-color: var(--red); color: var(--red); }
+  .filters-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-4); }
+  .filter-field { display: flex; flex-direction: column; gap: 6px; }
+  .filter-field label { font-size: 12px; font-weight: 700; color: var(--text-tertiary); }
+  .filter-select {
+    width: 100%; padding: 11px 38px 11px 14px; background: rgba(11,18,32,0.7); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text-primary); font-family: var(--font-heading); font-weight: 700; font-size: 14px;
+    cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='%23E8B547'%3E%3Cpath d='M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: left 12px center; transition: border-color var(--t-fast);
+  }
+  .filter-select:hover, .filter-select:focus { border-color: var(--gold); outline: none; }
+  .filter-note { margin-top: var(--sp-3); font-size: 12px; color: var(--text-tertiary); }
+
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--sp-4) var(--sp-3); padding: var(--sp-3) 0; }
+  @media (min-width: 1200px) { .cat-grid { grid-template-columns: repeat(6, 1fr); gap: var(--sp-5) var(--sp-4); } }
+  @media (max-width: 900px) {
+    main { padding-top: 76px; }
+    .cat-header { padding: var(--sp-4) 0; margin-bottom: var(--sp-4); }
+    .cat-filters { padding: var(--sp-3) var(--sp-4); }
+    .cat-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--sp-4) var(--sp-2); }
+  }
+  @media (max-width: 420px) {
+    .cat-grid { grid-template-columns: repeat(2, 1fr); }
+    .filters-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  .no-results { text-align: center; color: var(--text-tertiary); padding: var(--sp-6); font-size: 15px; }
+
+  .cat-grid :global(.pc) { display: block; text-decoration: none; color: inherit; min-width: 0; max-width: 100%; }
+  .cat-grid :global(.pc-thumb) { position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: var(--navy-2, #122038); border: 1px solid var(--border); }
+  .cat-grid :global(.pc-thumb)::before { content: ''; display: block; padding-top: 150%; }
+  .cat-grid :global(.pc-thumb img) { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; transition: transform var(--t-fast); }
+  .cat-grid :global(.pc:hover .pc-thumb img) { transform: scale(1.06); }
+  .cat-grid :global(.pc-rating) { position: absolute; top: 8px; inset-inline-end: 8px; display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,0.75); color: #E8B547; font-size: 12px; font-weight: 800; padding: 3px 7px; border-radius: 6px; }
+  .cat-grid :global(.pc-rating svg) { width: 12px; height: 12px; }
+  .cat-grid :global(.pc-body) { padding: 8px 2px 0; min-width: 0; }
+  .cat-grid :global(.pc-title) { font-size: 14px; font-weight: 700; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; word-break: break-word; }
+  .cat-grid :global(.pc-sub) { display: block; font-size: 12px; color: var(--text-tertiary); margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; max-width: 100%; }
+  .cat-grid :global(.pc-year) { display: inline-block; font-size: 11px; color: var(--text-tertiary); margin-top: 3px; }
+
+  .pagination { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; padding: var(--sp-6) 0 var(--sp-4); }
+  .page-btn {
+    min-width: 40px; height: 40px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.04);
+    color: var(--text-secondary); font-weight: 700; font-size: 15px; cursor: pointer; transition: all var(--t-fast); font-family: var(--font-heading); text-decoration: none;
+  }
+  .page-btn:hover { border-color: var(--gold); color: var(--gold); background: var(--gold-dim); }
+  .page-btn.active { background: var(--gold); color: #1A1408; border-color: var(--gold); }
+  .page-btn.disabled { opacity: 0.35; pointer-events: none; }
+  .page-ellipsis { color: var(--text-tertiary); padding: 0 4px; }
+</style>

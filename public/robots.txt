@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# منع فهرسة صفحات البحث الديناميكية (محتوى مكرر)
+Disallow: /search
+
+Sitemap: https://cima-liveapp.site/sitemap.xml

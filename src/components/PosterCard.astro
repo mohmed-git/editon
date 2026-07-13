@@ -1,0 +1,65 @@
+---
+import Icon from './Icon.astro';
+import type { TitleCard } from '../lib/data';
+
+interface Props {
+  card: TitleCard;
+  progress?: number;
+  episode?: string;
+  landscape?: boolean;
+}
+const { card, progress, episode, landscape = false } = Astro.props;
+const typeLabel = { movie: 'فيلم', series: 'مسلسل', anime: 'أنمي' }[card.type] || '';
+const img = (landscape && card.backdrop ? card.backdrop : card.poster) || '/static/placeholder-poster.svg';
+---
+<a class="poster-card" href={`/title/${card.id}`} data-id={card.id}>
+  <button
+    class="card-fav"
+    type="button"
+    data-fav-btn
+    data-fav-id={card.id}
+    data-fav-title={card.title}
+    data-fav-poster={card.poster}
+    data-fav-type={card.type}
+    data-fav-year={card.year ?? ''}
+    data-fav-rating={card.rating ?? ''}
+    aria-pressed="false"
+    aria-label="إضافة إلى المفضلة"
+  ><Icon name="heart" /></button>
+  <div class="poster-card-inner">
+    <img src={img} alt={card.title} loading="lazy" decoding="async" width={landscape ? 480 : 320} height={landscape ? 270 : 480} onerror="this.onerror=null;this.src='/static/placeholder-poster.svg'" />
+    {typeLabel && <span class="poster-badge">{typeLabel}</span>}
+    {progress != null && (
+      <div class="poster-progress"><div class="poster-progress-fill" style={`width:${progress}%`}></div></div>
+    )}
+    <div class="poster-hover">
+      <div class="poster-hover-title">{card.title}</div>
+      {episode && <div style="font-size:11px;color:var(--gold);margin-bottom:6px;font-weight:600">{episode}</div>}
+      <div class="poster-hover-meta">
+        {card.rating != null && <span class="rating" title="التقييم من TMDB"><Icon name="star" /> {card.rating}</span>}
+        {card.year && <span>{card.year}</span>}
+      </div>
+      <div class="poster-hover-actions">
+        <button
+          class="poster-play-btn"
+          type="button"
+          aria-label="تشغيل"
+          onclick={`event.preventDefault();event.stopPropagation();location.href='/watch/${card.id}'`}
+        ><Icon name="play" /></button>
+        <button
+          class="poster-mini-btn"
+          type="button"
+          data-fav-btn
+          data-fav-id={card.id}
+          data-fav-title={card.title}
+          data-fav-poster={card.poster}
+          data-fav-type={card.type}
+          data-fav-year={card.year ?? ''}
+          data-fav-rating={card.rating ?? ''}
+          aria-pressed="false"
+          aria-label="إضافة للمفضلة"
+        ><Icon name="heart" /></button>
+      </div>
+    </div>
+  </div>
+</a>

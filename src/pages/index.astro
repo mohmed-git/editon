@@ -1,0 +1,178 @@
+---
+// ============================================================================
+// الصفحة الرئيسية — Static (prerender = true)
+// لا تتغير كثيراً، فبناؤها ثابتاً يحسّن الأداء والـ SEO ويقلّل طلبات الـ Worker.
+// ============================================================================
+export const prerender = true;
+
+import Base, { SITE_NAME } from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import Row from '../components/Row.astro';
+import Icon from '../components/Icon.astro';
+import { home, getDetail } from '../lib/data-static';
+import { homeSchema } from '../lib/seo';
+import { stats } from '../lib/data';
+
+const hero = getDetail(home.hero);
+const heroBg = hero?.backdrop || hero?.poster;
+const heroSyn = (hero?.synopsis || '').trim();
+
+// إحصائيات المكتبة (لشريط الثقة على الرئيسية)
+const byType = (stats?.byType || {}) as Record<string, number>;
+const fmt = (n: number) => (n || 0).toLocaleString('en');
+const libStats = [
+  { slug: 'movie', label: 'فيلم', count: byType.movie || 0 },
+  { slug: 'series', label: 'مسلسل', count: byType.series || 0 },
+  { slug: 'anime', label: 'أنمي', count: byType.anime || 0 },
+];
+---
+<Base
+  title={`${SITE_NAME} | مشاهدة أحدث الأفلام والمسلسلات والأنمي مترجمة اون لاين HD`}
+  description={`${SITE_NAME} — شاهد أحدث الأفلام والمسلسلات والأنمي مترجمة أون لاين بجودة HD مجاناً وبترجمة عربية احترافية.`}
+  canonical="/"
+  schema={homeSchema()}
+>
+  <Nav active="home" />
+
+  {hero && (
+    <section class="hero" data-screen-label="الصفحة الرئيسية">
+      <div class="hero-bg">
+        <img src={heroBg} alt={hero.title} />
+      </div>
+      <div class="hero-content">
+        <div class="hero-inner">
+          <div class="hero-tag"><span class="dot"></span><span>الأكثر رواجاً الآن</span></div>
+          <h1 class="hero-title">{hero.title}</h1>
+          <div class="hero-meta">
+            {hero.year && <span>{hero.year}</span>}
+            {hero.country && <span>{hero.country}</span>}
+            {hero.rating != null && (
+              <span title="التقييم من TMDB"><Icon name="star" /> <span style="color:var(--gold);font-weight:700">{hero.rating}</span> <small style="color:var(--text-secondary)">TMDB</small></span>
+            )}
+            <span class="chip gold" style="padding:3px 10px;font-size:11px">HD</span>
+          </div>
+          <div class="hero-genres">
+            {(hero.genres || []).slice(0, 4).map((g: string) => <span class="chip">{g}</span>)}
+          </div>
+          <p class="hero-logline">{heroSyn}</p>
+          <div class="hero-actions">
+            <a href={`/watch/${hero.id}`} class="btn btn-primary btn-lg"><Icon name="play" /> <span>مشاهدة الآن</span></a>
+            <a href={`/title/${hero.id}`} class="btn btn-ghost btn-lg"><Icon name="info" /> <span>مزيد من التفاصيل</span></a>
+          </div>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <main>
+    <section class="lib-stats" aria-label="إحصائيات المكتبة">
+      {libStats.map((s) => (
+        <a class="lib-stat" href={`/category/${s.slug}`}>
+          <span class="lib-stat-num">{fmt(s.count)}+</span>
+          <span class="lib-stat-label">{s.label}</span>
+        </a>
+      ))}
+      <div class="lib-stat lib-stat-note">
+        <span class="lib-stat-num"><Icon name="star" /> HD</span>
+        <span class="lib-stat-label">ترجمة عربية · مجاناً</span>
+      </div>
+    </section>
+    <div class="rows-container">
+      {home.rows.map((row: any) => (
+        <Row id={row.slug} title={row.title} items={row.items} />
+      ))}
+    </div>
+    <Footer />
+  </main>
+</Base>
+
+<style>
+  .hero {
+    position: relative;
+    height: 92vh; min-height: 640px; max-height: 900px;
+    overflow: hidden; margin-bottom: var(--sp-6);
+  }
+  .hero-bg { position: absolute; inset: 0; z-index: 0; }
+  .hero-bg img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
+  .hero-bg::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      linear-gradient(90deg, rgba(11,18,32,0.05) 0%, rgba(11,18,32,0.75) 55%, rgba(11,18,32,0.98) 100%),
+      linear-gradient(180deg, rgba(11,18,32,0.4) 0%, transparent 25%, transparent 55%, rgba(11,18,32,1) 100%);
+    z-index: 1;
+  }
+  .hero-content {
+    position: relative; z-index: 2; max-width: 1600px; margin: 0 auto;
+    padding: 0 var(--sp-6); height: 100%; display: flex; flex-direction: column;
+    justify-content: flex-end; padding-bottom: var(--sp-8);
+  }
+  .hero-inner { max-width: 640px; }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px;
+    background: var(--gold-dim); border: 1px solid var(--gold); border-radius: 100px;
+    font-size: 12px; font-weight: 600; color: var(--gold); margin-bottom: var(--sp-4);
+    letter-spacing: 0.02em;
+  }
+  .hero-tag .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+  .hero-title {
+    font-size: clamp(48px, 6vw, 84px); font-weight: 900; line-height: 1;
+    margin-bottom: var(--sp-4); text-shadow: 0 4px 20px rgba(0,0,0,0.6); text-wrap: balance;
+  }
+  .hero-meta {
+    display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap;
+    margin-bottom: var(--sp-4); color: var(--text-secondary); font-size: 14px;
+  }
+  .hero-meta > span { display: inline-flex; align-items: center; gap: 6px; }
+  .hero-match { color: var(--success); font-weight: 700; }
+  .hero-genres { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: var(--sp-4); }
+  .hero-logline {
+    font-size: 17px; line-height: 1.7; color: var(--text-secondary);
+    margin-bottom: var(--sp-5); max-width: 560px; text-wrap: pretty;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .hero-actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+  main { position: relative; z-index: 5; }
+  .rows-container { padding: var(--sp-5) 0; }
+
+  /* شريط إحصائيات المكتبة */
+  .lib-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3);
+    max-width: 1100px; margin: 0 auto var(--sp-4); padding: 0 var(--sp-6);
+  }
+  .lib-stat {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: var(--sp-4) var(--sp-3); background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: var(--r-md); text-decoration: none; transition: all var(--t-fast);
+  }
+  a.lib-stat:hover { border-color: var(--gold-dim); background: var(--bg-3); transform: translateY(-2px); }
+  .lib-stat-num { font-family: var(--font-heading); font-weight: 900; font-size: 26px; color: var(--gold); display: inline-flex; align-items: center; gap: 6px; }
+  .lib-stat-num :global(svg) { width: 18px; height: 18px; }
+  .lib-stat-label { font-size: 13px; color: var(--text-tertiary); font-weight: 600; }
+  .lib-stat-note .lib-stat-num { font-size: 20px; }
+  @media (max-width: 700px) {
+    .lib-stats { grid-template-columns: repeat(2, 1fr); padding: 0 var(--sp-4); }
+    .lib-stat-num { font-size: 22px; }
+  }
+
+  /* الهاتف والأجهزة اللوحية */
+  @media (max-width: 900px) {
+    .hero { height: 78vh; min-height: 480px; margin-bottom: var(--sp-4); }
+    .hero-content { padding: 0 var(--sp-4) var(--sp-6); justify-content: flex-end; }
+    .hero-inner { max-width: 100%; }
+    .hero-title { font-size: clamp(30px, 8vw, 52px); margin-bottom: var(--sp-3); }
+    .hero-logline { font-size: 15px; -webkit-line-clamp: 3; margin-bottom: var(--sp-4); max-width: 100%; }
+    .hero-meta { gap: var(--sp-3); font-size: 13px; }
+    .hero-actions { gap: 10px; width: 100%; }
+    .hero-actions .btn { flex: 1 1 auto; justify-content: center; }
+  }
+  @media (max-width: 480px) {
+    .hero { height: auto; min-height: 0; padding-top: 76px; }
+    .hero-bg { position: absolute; }
+    .hero-content { min-height: 68vh; }
+    .hero-title { font-size: clamp(26px, 9vw, 40px); }
+    .hero-genres { margin-bottom: var(--sp-3); }
+    .hero-actions { flex-direction: column; }
+    .hero-actions .btn { width: 100%; }
+  }
+</style>

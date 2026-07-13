@@ -1,0 +1,110 @@
+---
+// ============================================================================
+// التخطيط الأساسي — سينما لايف (cima-liveapp.site)
+// ----------------------------------------------------------------------------
+// يحوي <head> كاملاً: title, meta description, canonical, OpenGraph, Twitter,
+// وSchema.org (JSON-LD) قابل للتمرير من كل صفحة. اسم الموقع "سينما لايف"
+// يظهر في meta description وSchema فقط (وليس في عناوين صفحات الأعمال/الحلقات).
+// ============================================================================
+export const SITE_NAME = 'سينما لايف';
+export const SITE_URL = 'https://cima-liveapp.site';
+
+interface Props {
+  title: string;
+  description?: string;
+  canonical?: string;         // مسار الصفحة (يُدمج مع SITE_URL)
+  ogImage?: string | null;    // صورة المشاركة
+  ogType?: string;            // website | video.movie | video.tv_show | video.episode
+  schema?: object | object[]; // JSON-LD
+  bodyStyle?: string;
+  robots?: string;
+}
+const {
+  title,
+  description = 'سينما لايف — شاهد أحدث الأفلام والمسلسلات والأنمي مترجمة أون لاين بجودة HD مجاناً.',
+  canonical = '/',
+  ogImage = null,
+  ogType = 'website',
+  schema = null,
+  bodyStyle = '',
+  robots = 'index, follow, max-image-preview:large, max-snippet:-1',
+} = Astro.props;
+
+const canonicalUrl = canonical.startsWith('http') ? canonical : SITE_URL + canonical;
+const schemaList = schema ? (Array.isArray(schema) ? schema : [schema]) : [];
+---
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B1220" />
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  <link rel="canonical" href={canonicalUrl} />
+  <meta name="robots" content={robots} />
+
+  <!-- OpenGraph -->
+  <meta property="og:site_name" content={SITE_NAME} />
+  <meta property="og:locale" content="ar_AR" />
+  <meta property="og:type" content={ogType} />
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:url" content={canonicalUrl} />
+  {ogImage && <meta property="og:image" content={ogImage} />}
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={description} />
+  {ogImage && <meta name="twitter:image" content={ogImage} />}
+
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png" />
+  <link rel="alternate icon" href="/static/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
+  <meta name="theme-color" content="#0b1220" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="preconnect" href="https://image.tmdb.org" />
+  <link rel="preconnect" href="https://pub-7bd753a4463049929e562aa677ad4251.r2.dev" />
+
+  {schemaList.map((s) => (
+    <script type="application/ld+json" set:html={JSON.stringify(s)} />
+  ))}
+
+  <!-- تطبيق تخصيص المستخدم (اللون/الخلفية) المحفوظ في localStorage قبل الرسم -->
+  <script is:inline>
+    (function () {
+      try {
+        var saved = localStorage.getItem('cinema-tweaks');
+        if (!saved) return;
+        var t = JSON.parse(saved);
+        var ACCENTS = {
+          gold: { gold: '#E8B547', hover: '#F4C766', dim: 'rgba(232,181,71,.15)', glow: 'rgba(232,181,71,.35)' },
+          red: { gold: '#E5484D', hover: '#F26D71', dim: 'rgba(229,72,77,.15)', glow: 'rgba(229,72,77,.35)' },
+          purple: { gold: '#9B6BE8', hover: '#B591F0', dim: 'rgba(155,107,232,.15)', glow: 'rgba(155,107,232,.35)' },
+          blue: { gold: '#3B82F6', hover: '#60A5FA', dim: 'rgba(59,130,246,.15)', glow: 'rgba(59,130,246,.35)' },
+        };
+        var BG = {
+          blue: { bg0: '#070B14', bg1: '#0B1220', bg2: '#131B2E', bg3: '#1A2338', bg4: '#232E48' },
+          warm: { bg0: '#0F0A08', bg1: '#161110', bg2: '#211918', bg3: '#2D2321', bg4: '#3D3230' },
+          pure: { bg0: '#000000', bg1: '#0A0A0A', bg2: '#141414', bg3: '#1F1F1F', bg4: '#2B2B2B' },
+        };
+        var r = document.documentElement.style;
+        var a = ACCENTS[t.accentColor] || ACCENTS.gold;
+        r.setProperty('--gold', a.gold); r.setProperty('--gold-hover', a.hover);
+        r.setProperty('--gold-dim', a.dim); r.setProperty('--gold-glow', a.glow);
+        var bg = BG[t.bgTone] || BG.blue;
+        r.setProperty('--bg-0', bg.bg0); r.setProperty('--bg-1', bg.bg1); r.setProperty('--bg-2', bg.bg2);
+        r.setProperty('--bg-3', bg.bg3); r.setProperty('--bg-4', bg.bg4);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body style={bodyStyle}>
+  <slot />
+  <!-- إدارة المفضلة عبر localStorage (يربط أزرار القلب + عدّاد الترويسة) -->
+  <script is:inline src="/static/favorites.js"></script>
+</body>
+</html>
