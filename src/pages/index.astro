@@ -79,8 +79,10 @@ const libStats = [
       </div>
     </section>
     <div class="rows-container">
-      {home.rows.map((row: any) => (
-        <Row id={row.slug} title={row.title} items={row.items} />
+      {home.rows.map((row: any, i: number) => (
+        <>
+          <Row id={row.slug} title={row.title} items={row.items} />
+        </>
       ))}
     </div>
     <Footer />

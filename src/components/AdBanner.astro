@@ -1,0 +1,32 @@
+---
+// ============================================================================
+// بانر إعلاني (Adsterra Smartlink) — سينما لايف
+// ----------------------------------------------------------------------------
+// بانر أنيق غير مزعج يفتح Smartlink في تبويب جديد عند النقر. يستغل الرابطين
+// بالتناوب (data-slot) لتوزيع الأرباح، ويحترم تحديد التكرار عبر ads.js لكن
+// كنقرة صريحة من المستخدم فهو دائماً مسموح (نقرة واعية = ربح آمن).
+//
+// الاستخدام: <AdBanner variant="inline" /> أو variant="wide"
+// يُخفى تلقائياً داخل صفحة المشاهدة (ما نمرّره هناك أصلاً).
+// ============================================================================
+interface Props {
+  variant?: 'inline' | 'wide';
+  label?: string;
+}
+const { variant = 'inline', label = 'محتوى وعروض من شركائنا المعلنين' } = Astro.props;
+---
+<a
+  class={`ad-banner ad-banner--${variant}`}
+  href="#"
+  rel="nofollow sponsored noopener"
+  target="_blank"
+  data-ad-smartlink
+  aria-label="إعلان مموّل"
+>
+  <span class="ad-banner__tag">إعلان</span>
+  <span class="ad-banner__body">
+    <span class="ad-banner__title">{label}</span>
+    <span class="ad-banner__sub">محتوى إعلاني — يفتح في تبويب جديد</span>
+  </span>
+  <span class="ad-banner__cta">عرض الآن ›</span>
+</a>
