@@ -60,13 +60,20 @@ for _w in catalog:
 POLLUTED_POSTERS = {p for p, ws in _poster_users.items() if len(ws) > 1}
 print(f'  صور TMDB ملوّثة (مشتركة في CSV): {len(POLLUTED_POSTERS)}')
 
-# ---------- تحميل الإثراء ----------
-print('تحميل إثراء TMDB ...')
+# ---------- تحميل الإثراء (مصغّر في الذاكرة توفيراً للرام والسرعة) ----------
+# نحمّل الحقول المستخدمة فقط من كل ملف إثراء (بدل الكائن الكامل) لتقليل الذاكرة،
+# مع إبقائها في الرام لأنها تُقرأ لكل عمل (+ مصادر _merged_from) فالقراءة الكسولة
+# من القرص كانت بطيئة جداً (I/O لآلاف الملفات).
+print('تحميل إثراء TMDB (مصغّر) ...')
+AI_DIR = os.path.join(CACHE, 'tmdb-ai')
+_ENR_FIELDS = ('tmdbId', 'synopsis', 'tagline', 'rating', 'voteCount',
+               'genres', 'backdrop', 'tmdbPoster', 'tmdbTitleAr', 'year')
 enrich = {}
-for f in glob.glob(os.path.join(CACHE, 'tmdb-ai', '*.json')):
+for f in glob.glob(os.path.join(AI_DIR, '*.json')):
     wid = os.path.basename(f)[:-5]
     try:
-        enrich[wid] = json.load(open(f, encoding='utf-8'))
+        d = json.load(open(f, encoding='utf-8'))
+        enrich[wid] = {k: d.get(k) for k in _ENR_FIELDS if d.get(k) is not None}
     except Exception:
         pass
 print(f'  {len(enrich)} ملف إثراء')
@@ -74,22 +81,25 @@ print(f'  {len(enrich)} ملف إثراء')
 # ---------- تحميل إثراء الطاقم (cast/creators/runtime) من TMDB credits ----------
 # الكاش مفتاحه {tmdbId}-{tv|movie}.json (ولّده enrich_credits.py). نحقنه في details
 # أثناء البناء ليبقى الإثراء دائماً ومتسقاً مع أي إعادة بناء مستقبلية.
-print('تحميل إثراء الطاقم (credits) ...')
-credits_cache = {}
-for f in glob.glob(os.path.join(CACHE, 'tmdb-credits', '*.json')):
-    key = os.path.basename(f)[:-5]  # مثال: 675-movie
-    try:
-        credits_cache[key] = json.load(open(f, encoding='utf-8'))
-    except Exception:
-        pass
-print(f'  {len(credits_cache)} ملف طاقم')
+# ملاحظة ذاكرة: لا نحمّل كل ملفات الطاقم في الرام (تتجاوز حد الذاكرة مع كتالوج كبير).
+# بدلاً من ذلك نبني فهرس أسماء الملفات فقط، ونقرأ الملف من القرص عند الطلب (lazy).
+print('فهرسة ملفات إثراء الطاقم (credits) ...')
+CREDITS_DIR = os.path.join(CACHE, 'tmdb-credits')
+_credits_files = set(os.listdir(CREDITS_DIR)) if os.path.isdir(CREDITS_DIR) else set()
+print(f'  {len(_credits_files)} ملف طاقم (تُقرأ عند الطلب)')
 
 def credits_for(tmdb_id, typ):
-    """يعيد {cast,creators,runtime} من كاش الطاقم أو None."""
+    """يعيد {cast,creators,runtime} من كاش الطاقم أو None (قراءة كسولة من القرص)."""
     if not tmdb_id:
         return None
     kind = 'movie' if typ == 'movie' else 'tv'
-    return credits_cache.get(f'{tmdb_id}-{kind}')
+    fname = f'{tmdb_id}-{kind}.json'
+    if fname not in _credits_files:
+        return None
+    try:
+        return json.load(open(os.path.join(CREDITS_DIR, fname), encoding='utf-8'))
+    except Exception:
+        return None
 
 # دالة: أفضل إثراء لعمل (يشمل المصادر المدموجة)
 def best_enrich(work):
