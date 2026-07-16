@@ -37,5 +37,3 @@ lerna-debug.log*
 
 # misc
 .DS_Store
-
-__pycache__/

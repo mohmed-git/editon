@@ -1,174 +1,63 @@
 ---
 // ============================================================================
-// صفحة البحث — Static (prerender = true) + بحث client-side
-// ----------------------------------------------------------------------------
-// لتقليل استهلاك الـ Worker: الصفحة تُبنى ثابتة (ملف واحد)، والبحث يجري بالكامل
-// في المتصفح من /data/search-index.json (يُحمّل مرة ويُخزَّن في الكاش). لا طلبات
-// SSR إطلاقاً. النتائج تُرسَم client-side بنفس شكل PosterCard.
+// صفحة البحث — SSR (prerender = false)
+// خفيفة جداً: تصفية فورية على قائمة العناوين المُجهّزة مسبقاً في الذاكرة
+// (لا استدعاء شبكة، لا معالجة ثقيلة) — تحترم حد CPU 10ms.
 // ============================================================================
-export const prerender = true;
+export const prerender = false;
 
 import Base from '../layouts/Base.astro';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
+import PosterCard from '../components/PosterCard.astro';
 import Icon from '../components/Icon.astro';
+import type { TitleCard } from '../lib/data';
+import { searchSSR } from '../lib/data';
 import { SITE_NAME } from '../lib/seo';
+
+const q = (Astro.url.searchParams.get('q') || '').trim();
+let results: TitleCard[] = [];
+if (q) {
+  results = await searchSSR(q, Astro.url, 60);
+}
+Astro.response.headers.set('Cache-Control', 'public, max-age=60');
 ---
 <Base
-  title={`بحث — ${SITE_NAME}`}
-  description={`ابحث في مكتبة ${SITE_NAME} عن أفلام ومسلسلات وأنمي مترجمة.`}
+  title={q ? `نتائج البحث عن "${q}" — ${SITE_NAME}` : `بحث — ${SITE_NAME}`}
+  description={q ? `نتائج البحث عن "${q}" في مكتبة ${SITE_NAME} من الأفلام والمسلسلات والأنمي.` : `ابحث في مكتبة ${SITE_NAME} عن أفلام ومسلسلات وأنمي مترجمة.`}
   canonical="/search"
   robots="noindex, follow"
 >
   <Nav />
   <main class="search-main">
     <div class="container">
-      <h1 class="search-h" id="searchHeading"><span>ابحث في المكتبة</span></h1>
-      <p class="search-sub" id="searchSub" hidden></p>
+      <h1 class="search-h">
+        {q ? <span>نتائج البحث عن: <b>{q}</b></span> : <span>ابحث في المكتبة</span>}
+      </h1>
+      {q && <p class="search-sub">{results.length} نتيجة</p>}
 
-      <form class="search-form" id="searchForm" role="search" action="/search" method="get">
-        <Icon name="search" />
-        <input type="text" name="q" id="searchInput" placeholder="اكتب اسم فيلم، مسلسل، أو أنمي..." aria-label="بحث" autocomplete="off" />
-        <button type="submit" class="btn btn-primary">بحث</button>
-      </form>
-
-      <div class="cat-grid" id="searchResults" hidden></div>
-      <div class="search-empty" id="searchEmpty" hidden>
-        <Icon name="search" />
-        <p id="searchEmptyText">لا توجد نتائج.</p>
-      </div>
-      <div class="search-loading" id="searchLoading" hidden>جارٍ التحميل…</div>
+      {q && results.length > 0 && (
+        <div class="cat-grid">
+          {results.map((c) => <PosterCard card={c} />)}
+        </div>
+      )}
+      {q && results.length === 0 && (
+        <div class="search-empty">
+          <Icon name="search" />
+          <p>لا توجد نتائج مطابقة لـ "{q}". جرّب كلمات أخرى.</p>
+        </div>
+      )}
+      {!q && (
+        <form class="search-form" action="/search" method="get" role="search">
+          <Icon name="search" />
+          <input type="text" name="q" placeholder="اكتب اسم فيلم، مسلسل، أو أنمي..." aria-label="بحث" autofocus />
+          <button type="submit" class="btn btn-primary">بحث</button>
+        </form>
+      )}
     </div>
     <Footer />
   </main>
 </Base>
-
-<script is:inline>
-  (function () {
-    var IDX_URL = '/data/search-index.json';
-    var POSTER_BASE = 'https://image.tmdb.org/t/p/w342';
-    var input = document.getElementById('searchInput');
-    var form = document.getElementById('searchForm');
-    var results = document.getElementById('searchResults');
-    var empty = document.getElementById('searchEmpty');
-    var emptyText = document.getElementById('searchEmptyText');
-    var loading = document.getElementById('searchLoading');
-    var sub = document.getElementById('searchSub');
-    var heading = document.getElementById('searchHeading');
-    var INDEX = null, LIMIT = 60;
-    var PLACEHOLDER = '/static/placeholder-poster.svg';
-    var TYPE_LABEL = { movie: 'فيلم', series: 'مسلسل', anime: 'أنمي' };
-
-    function norm(s) {
-      return (s || '').toString().toLowerCase()
-        .replace(/[\u0640]/g, '')
-        .replace(/[أإآا]/g, 'ا').replace(/[ىي]/g, 'ي').replace(/[ة]/g, 'ه')
-        .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-    }
-
-    function esc(s) {
-      return (s || '').toString().replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    // نطابق بنية PosterCard.astro تماماً ليطبّق نفس التنسيق (بما فيها زر المفضلة)
-    function cardHTML(it) {
-      var img = it.poster || PLACEHOLDER;
-      var name = esc(it.title || '');
-      var typeLabel = TYPE_LABEL[it.type] || '';
-      var year = it.year || '';
-      var rating = (it.rating != null) ? (Math.round(it.rating * 10) / 10) : '';
-      var star = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.6-5.2 4.6 1.6 6.8L12 17.3 5.8 20.9l1.6-6.8L2.2 9.5l6.9-.6z"/></svg>';
-      var heart = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 1 0-7.8 7.8l1.1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>';
-      return '<a class="poster-card" href="/title/' + encodeURIComponent(it.id) + '" data-id="' + esc(it.id) + '">' +
-        '<button class="card-fav" type="button" data-fav-btn data-fav-id="' + esc(it.id) + '" data-fav-title="' + name + '" data-fav-poster="' + esc(it.poster || '') + '" data-fav-type="' + esc(it.type) + '" data-fav-year="' + year + '" data-fav-rating="' + rating + '" aria-pressed="false" aria-label="إضافة إلى المفضلة">' + heart + '</button>' +
-        '<div class="poster-card-inner">' +
-        '<img src="' + esc(img) + '" alt="' + name + '" loading="lazy" decoding="async" width="320" height="480" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER + '\'" />' +
-        (typeLabel ? '<span class="poster-badge">' + typeLabel + '</span>' : '') +
-        '<div class="poster-hover">' +
-        '<div class="poster-hover-title">' + name + '</div>' +
-        '<div class="poster-hover-meta">' +
-        (rating !== '' ? '<span class="rating">' + star + ' ' + rating + '</span>' : '') +
-        (year ? '<span>' + year + '</span>' : '') +
-        '</div>' +
-        '<div class="poster-hover-actions">' +
-        '<button class="poster-play-btn" type="button" aria-label="تشغيل" onclick="event.preventDefault();event.stopPropagation();location.href=\'/watch/' + encodeURIComponent(it.id) + '\'">' +
-        '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>' +
-        '</div></div></div></a>';
-    }
-
-    function render(list, q) {
-      if (!list.length) {
-        empty.hidden = false;
-        emptyText.textContent = 'لا توجد نتائج مطابقة لـ "' + q + '". جرّب كلمات أخرى.';
-        results.hidden = true;
-        results.innerHTML = '';
-        sub.hidden = true;
-        return;
-      }
-      empty.hidden = true;
-      results.hidden = false;
-      sub.hidden = false;
-      sub.textContent = list.length + ' نتيجة';
-      var html = '';
-      for (var i = 0; i < list.length; i++) html += cardHTML(list[i]);
-      results.innerHTML = html;
-      // النقر يعمل عبر event-delegation في favorites.js تلقائياً؛ نبثّ الحدث
-      // فقط لمزامنة الحالة الظاهرة (مفعّل/غير مفعّل) للأزرار المُولّدة حديثاً.
-      try { window.dispatchEvent(new CustomEvent('cima:fav-changed')); } catch (e) {}
-    }
-
-    function doSearch(q) {
-      q = (q || '').trim();
-      if (!q || !INDEX) { results.hidden = true; empty.hidden = true; sub.hidden = true; heading.innerHTML = '<span>ابحث في المكتبة</span>'; return; }
-      heading.innerHTML = '<span>نتائج البحث عن: <b></b></span>';
-      heading.querySelector('b').textContent = q;
-      var nq = norm(q);
-      var terms = nq.split(' ').filter(Boolean);
-      var scored = [];
-      for (var i = 0; i < INDEX.length; i++) {
-        var it = INDEX[i];
-        var hay = it._n || (it._n = norm((it.title || '') + ' ' + (it.titleEn || '')));
-        var ok = true, score = 0;
-        for (var j = 0; j < terms.length; j++) {
-          var pos = hay.indexOf(terms[j]);
-          if (pos < 0) { ok = false; break; }
-          score += (pos === 0 ? 3 : 1);
-        }
-        if (ok) { score += (it.rating || 0) / 10; scored.push({ it: it, s: score }); }
-      }
-      scored.sort(function (a, b) { return b.s - a.s; });
-      render(scored.slice(0, LIMIT).map(function (x) { return x.it; }), q);
-    }
-
-    function loadIndex(then) {
-      if (INDEX) { then(); return; }
-      loading.hidden = false;
-      fetch(IDX_URL).then(function (r) { return r.json(); }).then(function (data) {
-        INDEX = data; loading.hidden = true; then();
-      }).catch(function () { loading.hidden = true; emptyText.textContent = 'تعذّر تحميل فهرس البحث.'; empty.hidden = false; });
-    }
-
-    // البحث الفوري أثناء الكتابة (debounce)
-    var timer = null;
-    input.addEventListener('input', function () {
-      clearTimeout(timer);
-      var q = input.value;
-      timer = setTimeout(function () { loadIndex(function () { doSearch(q); }); }, 180);
-    });
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var q = input.value;
-      loadIndex(function () { doSearch(q); });
-      // نحدّث الـ URL دون إعادة تحميل (لمشاركة الرابط)
-      try { history.replaceState(null, '', q ? '/search?q=' + encodeURIComponent(q) : '/search'); } catch (e2) {}
-    });
-
-    // لو فُتحت الصفحة برابط فيه ?q= (بحث محفوظ/مشارَك)
-    var initial = new URLSearchParams(location.search).get('q');
-    if (initial) { input.value = initial; loadIndex(function () { doSearch(initial); }); }
-    input.focus();
-  })();
-</script>
 
 <style>
   .search-main { padding-top: 110px; padding-bottom: var(--sp-8); min-height: 70vh; }
@@ -179,8 +68,7 @@ import { SITE_NAME } from '../lib/seo';
   @media (min-width: 1200px) { .cat-grid { grid-template-columns: repeat(6, 1fr); gap: var(--sp-5) var(--sp-4); } }
   .search-empty { text-align: center; padding: var(--sp-8) 0; color: var(--text-tertiary); }
   .search-empty :global(svg) { width: 56px; height: 56px; opacity: 0.3; margin-bottom: var(--sp-3); }
-  .search-loading { text-align: center; padding: var(--sp-6) 0; color: var(--text-tertiary); }
-  .search-form { display: flex; gap: var(--sp-3); align-items: center; max-width: 640px; margin: var(--sp-4) 0 var(--sp-5); background: var(--bg-2); border: 1px solid var(--border); border-radius: 100px; padding: 8px 8px 8px 20px; }
+  .search-form { display: flex; gap: var(--sp-3); align-items: center; max-width: 640px; margin-top: var(--sp-5); background: var(--bg-2); border: 1px solid var(--border); border-radius: 100px; padding: 8px 8px 8px 20px; }
   .search-form :global(svg) { width: 22px; height: 22px; color: var(--text-tertiary); flex-shrink: 0; }
   .search-form input { flex: 1; background: none; border: none; color: var(--text-primary); font-family: var(--font-body); font-size: 16px; outline: none; }
 </style>

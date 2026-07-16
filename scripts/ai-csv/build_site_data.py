@@ -37,42 +37,6 @@ def shard_of(s, n=NUM_SHARDS):
 def is_valid_url(u):
     return bool(u) and isinstance(u, str) and u.startswith('http') and 'javascript:' not in u
 
-# ---------- ترتيب سيرفرات المشاهدة ----------
-# الترتيب المطلوب للأعمال العادية (غير المرقمة):
-#   1) megatuktuk - HD   2) متعدد الجودات   3) LuluStream   4) Mixdrop   5) Filelions
-# الباقي يبقى بترتيبه الأصلي بعد الخمسة. الأعمال ذات السيرفرات المرقمة
-# (سيرفر 1 / سيرفر 2 ...) تُترك كما هي تماماً (لا نغيّر ترتيبها).
-_NUMBERED_RE = re.compile(r'^\s*سيرفر\s*\d+\s*$')
-
-def _server_priority(name):
-    """رتبة السيرفر حسب المطلوب (أصغر = أعلى). المطابقة على أساس المشغّل بغضّ
-    النظر عن لاحقة الجودة مثل ' - HD'. غير المذكور يأخذ رتبة كبيرة (يبقى بعدهم)."""
-    nm = (name or '').strip().lower()
-    base = nm.split(' - ')[0].strip()  # 'megatuktuk - HD' -> 'megatuktuk'
-    # megatuktuk أولاً (مع تفضيل HD إن وُجد ضمن نفس المشغّل)
-    if base == 'megatuktuk':
-        return 0 if 'hd' in nm else 1
-    if base == 'متعدد الجودات' or nm == 'متعدد الجودات':
-        return 2
-    if base == 'lulustream':
-        return 3
-    if base == 'mixdrop':
-        return 4
-    if base == 'filelions':
-        return 5
-    return 100  # الباقي — غير مهم ترتيبه
-
-def order_servers(servers):
-    """يرتّب سيرفرات حلقة واحدة حسب الأولوية المطلوبة.
-    لو كانت كل السيرفرات مرقمة (سيرفر N) نتركها كما هي دون تغيير."""
-    if not servers:
-        return servers
-    all_numbered = all(_NUMBERED_RE.match((sv.get('name') or '')) for sv in servers)
-    if all_numbered:
-        return servers  # لا نغيّر شيئاً في الأعمال المرقمة
-    # ترتيب ثابت (stable) حسب الأولوية — يحافظ على الترتيب الأصلي داخل نفس الرتبة
-    return sorted(servers, key=lambda sv: _server_priority(sv.get('name')))
-
 def write_json(path, obj):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     json.dump(obj, open(path, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
@@ -96,21 +60,13 @@ for _w in catalog:
 POLLUTED_POSTERS = {p for p, ws in _poster_users.items() if len(ws) > 1}
 print(f'  صور TMDB ملوّثة (مشتركة في CSV): {len(POLLUTED_POSTERS)}')
 
-# ---------- تحميل الإثراء (مصغّر في الذاكرة توفيراً للرام والسرعة) ----------
-# نحمّل الحقول المستخدمة فقط من كل ملف إثراء (بدل الكائن الكامل) لتقليل الذاكرة،
-# مع إبقائها في الرام لأنها تُقرأ لكل عمل (+ مصادر _merged_from) فالقراءة الكسولة
-# من القرص كانت بطيئة جداً (I/O لآلاف الملفات).
-print('تحميل إثراء TMDB (مصغّر) ...')
-AI_DIR = os.path.join(CACHE, 'tmdb-ai')
-_ENR_FIELDS = ('tmdbId', 'synopsis', 'tagline', 'rating', 'voteCount',
-               'genres', 'backdrop', 'tmdbPoster', 'tmdbTitleAr', 'year',
-               'releaseDate')
+# ---------- تحميل الإثراء ----------
+print('تحميل إثراء TMDB ...')
 enrich = {}
-for f in glob.glob(os.path.join(AI_DIR, '*.json')):
+for f in glob.glob(os.path.join(CACHE, 'tmdb-ai', '*.json')):
     wid = os.path.basename(f)[:-5]
     try:
-        d = json.load(open(f, encoding='utf-8'))
-        enrich[wid] = {k: d.get(k) for k in _ENR_FIELDS if d.get(k) is not None}
+        enrich[wid] = json.load(open(f, encoding='utf-8'))
     except Exception:
         pass
 print(f'  {len(enrich)} ملف إثراء')
@@ -118,25 +74,22 @@ print(f'  {len(enrich)} ملف إثراء')
 # ---------- تحميل إثراء الطاقم (cast/creators/runtime) من TMDB credits ----------
 # الكاش مفتاحه {tmdbId}-{tv|movie}.json (ولّده enrich_credits.py). نحقنه في details
 # أثناء البناء ليبقى الإثراء دائماً ومتسقاً مع أي إعادة بناء مستقبلية.
-# ملاحظة ذاكرة: لا نحمّل كل ملفات الطاقم في الرام (تتجاوز حد الذاكرة مع كتالوج كبير).
-# بدلاً من ذلك نبني فهرس أسماء الملفات فقط، ونقرأ الملف من القرص عند الطلب (lazy).
-print('فهرسة ملفات إثراء الطاقم (credits) ...')
-CREDITS_DIR = os.path.join(CACHE, 'tmdb-credits')
-_credits_files = set(os.listdir(CREDITS_DIR)) if os.path.isdir(CREDITS_DIR) else set()
-print(f'  {len(_credits_files)} ملف طاقم (تُقرأ عند الطلب)')
+print('تحميل إثراء الطاقم (credits) ...')
+credits_cache = {}
+for f in glob.glob(os.path.join(CACHE, 'tmdb-credits', '*.json')):
+    key = os.path.basename(f)[:-5]  # مثال: 675-movie
+    try:
+        credits_cache[key] = json.load(open(f, encoding='utf-8'))
+    except Exception:
+        pass
+print(f'  {len(credits_cache)} ملف طاقم')
 
 def credits_for(tmdb_id, typ):
-    """يعيد {cast,creators,runtime} من كاش الطاقم أو None (قراءة كسولة من القرص)."""
+    """يعيد {cast,creators,runtime} من كاش الطاقم أو None."""
     if not tmdb_id:
         return None
     kind = 'movie' if typ == 'movie' else 'tv'
-    fname = f'{tmdb_id}-{kind}.json'
-    if fname not in _credits_files:
-        return None
-    try:
-        return json.load(open(os.path.join(CREDITS_DIR, fname), encoding='utf-8'))
-    except Exception:
-        return None
+    return credits_cache.get(f'{tmdb_id}-{kind}')
 
 # دالة: أفضل إثراء لعمل (يشمل المصادر المدموجة)
 def best_enrich(work):
@@ -197,10 +150,6 @@ for w in catalog:
     backdrop = (e.get('backdrop') if e else None)
     genres = (e.get('genres') if e else None) or []
     year = w.get('year') or (e.get('year') if e else None)
-    release_date = (e.get('releaseDate') if e else None) or ''  # YYYY-MM-DD الكامل (للترتيب الأدق)
-    # لو ما عندناش سنة لكن عندنا تاريخ كامل، استنتج السنة منه
-    if not year and release_date and len(release_date) >= 4 and release_date[:4].isdigit():
-        year = int(release_date[:4])
 
     # التقييم: يُخفى إن كان عدد الأصوات قليلاً (غير موثوق إحصائياً).
     # يمنع ظهور "10/10" أو "9/10" مضللة بأصوات قليلة.
@@ -220,7 +169,6 @@ for w in catalog:
         'id': wid, 'type': typ, 'title': title_en, 'titleEn': site_titleEn,
         'year': year, 'rating': rating, 'poster': poster, 'backdrop': backdrop,
         'genres': genres, 'isNew': bool(w.get('is_new')),
-        'releaseDate': release_date,
     }
 
     # details.json
@@ -228,7 +176,7 @@ for w in catalog:
         'id': wid, 'type': typ, 'tmdbId': (e.get('tmdbId') if e else None),
         'title': title_en, 'titleEn': site_titleEn,
         'originalTitle': w.get('full_title') or title_en,
-        'year': year, 'releaseDate': release_date, 'rating': rating, 'voteCount': vote_count,
+        'year': year, 'rating': rating, 'voteCount': vote_count,
         'ratingSource': ('tmdb' if rating is not None else None),
         'poster': poster, 'tmdbPoster': (e.get('tmdbPoster') if e else None),
         'backdrop': backdrop, 'genres': genres, 'country': '',
@@ -255,16 +203,9 @@ for w in catalog:
         arr = []
         for ep in s.get('episodes', []):
             servers = []
-            for sv in ep.get('servers', []):
+            for i, sv in enumerate(ep.get('servers', [])):
                 if is_valid_url(sv.get('url')):
-                    servers.append({'name': sv.get('name') or 'سيرفر', 'url': sv['url']})
-            # ترتيب سيرفرات المشاهدة (megatuktuk-HD أولاً ... الخ) — مع ترك المرقمة كما هي
-            servers = order_servers(servers)
-            # إعادة الترقيم بعد الترتيب
-            for i, sv in enumerate(servers):
-                sv['id'] = i + 1
-                if not sv.get('name'):
-                    sv['name'] = f'سيرفر {i+1}'
+                    servers.append({'id': i + 1, 'name': sv.get('name', f'سيرفر {i+1}'), 'url': sv['url']})
             arr.append({
                 'num': ep['num'],
                 'name': ep.get('title') or f"الحلقة {ep['num']}",
@@ -391,20 +332,9 @@ by_cat = defaultdict(list)
 for wid, t in titles.items():
     by_cat[t['type']].append(t)
 
-# ترتيب: الأحدث حسب التاريخ الكامل (اليوم والشهر والسنة) ثم التقييم.
-# نحوّل releaseDate (YYYY-MM-DD) إلى عدد YYYYMMDD قابل للترتيب. عند غياب التاريخ
-# الكامل نرجع للسنة (YYYY0000) حتى تبقى الأعمال بلا تاريخ دقيق في مكانها الصحيح
-# ضمن سنتها.
-def _date_rank(t):
-    rd = (t.get('releaseDate') or '').strip()
-    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})', rd)
-    if m:
-        return int(m.group(1)) * 10000 + int(m.group(2)) * 100 + int(m.group(3))
-    y = t.get('year') or 0
-    return (y * 10000) if isinstance(y, int) else 0
-
+# ترتيب: الأحدث سنة ثم التقييم
 def sort_key(t):
-    return (-_date_rank(t), -(t.get('rating') or 0))
+    return (-(t.get('year') or 0), -(t.get('rating') or 0))
 
 # نظّف ملفات cat القديمة
 for old in glob.glob(os.path.join(PUB_DATA, 'cat', '*.json')):
