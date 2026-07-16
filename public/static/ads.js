@@ -29,12 +29,6 @@
   var SMARTLINK_KEY = 'cl_sl_last';     // آخر وقت فتح Smartlink
   var SMARTLINK_IDX_KEY = 'cl_sl_idx';  // فهرس التناوب بين الرابطين
 
-  // زر المشاهدة: كل كم دقيقة يُسمح بفتح إعلان عند النقر على زر المشاهدة.
-  // "أول نقرة على زر المشاهدة يظهر إعلان" — لكن مع سقف تكرار حتى لا يتكرر
-  // في كل نقرة (يُعتبر إزعاجاً/احتيالاً). المستخدم يكمل للمشاهدة دائماً.
-  var WATCH_AD_COOLDOWN_MIN = 30;       // 30 دقيقة بين كل إعلان مشاهدة والتالي
-  var WATCH_AD_KEY = 'cl_watch_ad_last';// آخر وقت فتح إعلان زر المشاهدة
-
   // ---- أدوات مساعدة -------------------------------------------------------
   function now() { return Date.now(); }
 
@@ -110,36 +104,6 @@
     window.open(url, '_blank', 'noopener');
   }
 
-  // ---- 2ج) إعلان زر المشاهدة ----------------------------------------------
-  // المطلوب: "أول نقرة على زر المشاهدة يظهر إعلان".
-  // أزرار المشاهدة = رابط يبدأ بـ /watch/ (زر العمل الكبير) أو زر التشغيل على
-  // البطاقات (.poster-play-btn). نفتح Smartlink في تبويب جديد ثم نترك المستخدم
-  // يكمل للمشاهدة عادةً (لا نعطّل التنقّل). سقف تكرار 30 دقيقة حتى لا يتكرر في
-  // كل نقرة — تفاعل حقيقي = ربح آمن وحساب سليم في Adsterra.
-  function canOpenWatchAd() {
-    var last = parseInt(getLS(WATCH_AD_KEY) || '0', 10);
-    if (isNaN(last)) last = 0;
-    return (now() - last) >= WATCH_AD_COOLDOWN_MIN * 60 * 1000;
-  }
-
-  function bindWatchButton(ev) {
-    var t = ev.target;
-    if (!t || !t.closest) return;
-    // زر المشاهدة الكبير أو زر التشغيل على البطاقات
-    var watchBtn = t.closest('a[href^="/watch/"], a[href*="/watch/"], .poster-play-btn, [data-watch-ad]');
-    if (!watchBtn) return;
-    if (!canOpenWatchAd()) return; // سقف تكرار — لا يتكرر في كل نقرة
-
-    setLS(WATCH_AD_KEY, String(now()));
-    // نحدّث مؤقّت الـ Smartlink العام أيضاً حتى لا يتراكم إعلانان معاً
-    setLS(SMARTLINK_KEY, String(now()));
-    var url = nextSmartlink();
-    // تبويب جديد في الخلفية — المستخدم يكمل للمشاهدة في نفس التبويب.
-    var w = window.open(url, '_blank', 'noopener');
-    if (w) { try { w.blur(); window.focus(); } catch (e) {} }
-    // لا نستدعي preventDefault: التنقّل لصفحة المشاهدة يستمر طبيعياً.
-  }
-
   // ---- التهيئة ------------------------------------------------------------
   function init() {
     if (isWatchPage()) return; // أمان مزدوج: لا إعلانات في صفحة المشاهدة
@@ -148,9 +112,6 @@
 
     // نقرات البانرات الصريحة أولاً (نقرة واعية = تُفتح دائماً)
     document.addEventListener('click', bindExplicitBanners, false);
-
-    // إعلان زر المشاهدة (أول نقرة على زر المشاهدة يظهر إعلان، مع سقف تكرار)
-    document.addEventListener('click', bindWatchButton, { passive: true });
 
     // ثم التفاعل في مكان فاضٍ لإطلاق Smartlink مرة كل فترة (مع cooldown)
     document.addEventListener('click', maybeOpenSmartlink, { passive: true });

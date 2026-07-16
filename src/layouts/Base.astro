@@ -18,6 +18,7 @@ interface Props {
   schema?: object | object[]; // JSON-LD
   bodyStyle?: string;
   robots?: string;
+  ads?: boolean;              // تفعيل إعلانات Adsterra (مطفأ في صفحة المشاهدة)
 }
 const {
   title,
@@ -28,6 +29,7 @@ const {
   schema = null,
   bodyStyle = '',
   robots = 'index, follow, max-image-preview:large, max-snippet:-1',
+  ads = true,
 } = Astro.props;
 
 const canonicalUrl = canonical.startsWith('http') ? canonical : SITE_URL + canonical;
@@ -106,5 +108,6 @@ const schemaList = schema ? (Array.isArray(schema) ? schema : [schema]) : [];
   <slot />
   <!-- إدارة المفضلة عبر localStorage (يربط أزرار القلب + عدّاد الترويسة) -->
   <script is:inline src="/static/favorites.js"></script>
+  {ads && <script is:inline src="/static/ads.js"></script>}
 </body>
 </html>

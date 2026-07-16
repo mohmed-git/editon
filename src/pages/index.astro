@@ -10,6 +10,7 @@ import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import Row from '../components/Row.astro';
 import Icon from '../components/Icon.astro';
+import AdBanner from '../components/AdBanner.astro';
 import { home, getDetail } from '../lib/data-static';
 import { homeSchema } from '../lib/seo';
 import { stats } from '../lib/data';
@@ -79,8 +80,11 @@ const libStats = [
       </div>
     </section>
     <div class="rows-container">
-      {home.rows.map((row: any) => (
-        <Row id={row.slug} title={row.title} items={row.items} />
+      {home.rows.map((row: any, i: number) => (
+        <>
+          <Row id={row.slug} title={row.title} items={row.items} />
+          {i === 1 && <div class="home-ad-slot"><AdBanner variant="wide" label="عروض حصرية ومكافآت يومية" /></div>}
+        </>
       ))}
     </div>
     <Footer />
