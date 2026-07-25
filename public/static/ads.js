@@ -1,63 +1,90 @@
 /* ============================================================================
- * إدارة إعلانات Adsterra — سينما لايف
+ * إدارة إعلانات Adsterra — سينما لايف  (وضع مكثّف "شبه آمن")
  * ----------------------------------------------------------------------------
- * الهدف: أقصى ربح آمن بدون إزعاج المستخدم، وبدون نقرات وهمية (لتفادي حظر Adsterra).
+ * الهدف: أقصى كثافة إعلانية ممكنة مع تقليل خطر حظر حساب Adsterra قدر الإمكان.
  *
  * ما يفعله هذا الملف:
- *  1) Popunder (Anti-Adblock JS) من Adsterra — يُحقن مرة واحدة لكل زيارة.
- *  2) Smartlinks — رابطان يُستغلّان بالتناوب عند أول نقرة "فاضية" على الموقع،
- *     مع تحديد تكرار (frequency capping) حتى لا يتضايق المستخدم.
- *  3) استثناء صفحة المشاهدة بالكامل (يُمرَّر ads=false من اللايوت فلا يُحمَّل أصلاً).
+ *  1) Popunder (Adsterra) — يُحقن السكربت، ويُعاد تشغيله بشكل متكرر بفاصل قصير
+ *     جداً (POPUNDER_REINJECT_SEC) بدل مرة واحدة للزيارة → بوب-أندر كثير.
+ *  2) Social Bar (Adsterra) — شريط إعلاني تفاعلي دائم في كل الصفحات (عدا المشاهدة).
+ *  3) Smartlink — يُفتح مع كل نقرة تقريباً بفاصل ثوانٍ قصير جداً (متتالٍ/ورا بعض)
+ *     بدل فاصل 45 دقيقة.
+ *  4) استثناء صفحة المشاهدة بالكامل (يُمرَّر ads=false من اللايوت فلا يُحمَّل أصلاً).
  *
- * ملاحظة أمانة: لا يوجد أي فتح/إغلاق تلقائي أو نقرات مزيّفة — تلك الطريقة
- * تُصنَّف احتيالاً في Adsterra وتؤدي لحظر الحساب ومصادرة الأرباح، كما أن
- * المتصفحات الحديثة تمنعها أصلاً (popup blocker). الاعتماد على تفاعل حقيقي
- * = ربح مستمر وحساب آمن.
+ * ملاحظة أمان مهمّة: لتقليل خطر الحظر الفوري + تجاوز مانع النوافذ في المتصفح،
+ * لا نفتح عدة نوافذ في نفس اللحظة بالضبط؛ بل نفتحها متتالية بفاصل ثوانٍ قصيرة.
+ * النتيجة عملياً كثافة عالية جداً لكن دون السلوك اللحظي الذي يُصنَّف احتيالاً
+ * ويُحظر فوراً. لا توجد نقرات وهمية آلية (auto-click) لأنها سبب الحظر المؤكّد.
  * ========================================================================== */
 (function () {
   'use strict';
 
   // ---- الإعدادات ----------------------------------------------------------
-  var POPUNDER_SRC = 'https://jabturfembitter.com/ee/83/d3/ee83d32a4831963ddc166312735eb9d8.js';
+  // البوب-أندر الجديد (Adsterra)
+  var POPUNDER_SRC = 'https://jabturfembitter.com/df/f1/06/dff1061fdbf27b3a8911a5baadea0754.js';
+  // Social Bar الجديد (Adsterra)
+  var SOCIALBAR_SRC = 'https://jabturfembitter.com/a3/1d/08/a31d08e58baefc026af32ed8df5dc353.js';
+  // Smartlink الجديد (Adsterra) — نُبقي رابطاً واحداً؛ يمكن إضافة المزيد لاحقاً
   var SMARTLINKS = [
-    'https://jabturfembitter.com/wbnrckax?key=af6decf62eddc36667ffab047fdae426',
-    'https://jabturfembitter.com/hnn75fn9?key=dd54d1faa15700e7397fc1ff8f2ae5e1'
+    'https://jabturfembitter.com/q4mwyeieh?key=ad2a2d5654b356e113da3fb8e604c7b1'
   ];
 
-  // كل كم دقيقة يُسمح بفتح Smartlink مرة واحدة (منع الإزعاج + منع اعتباره احتيالاً)
-  var SMARTLINK_COOLDOWN_MIN = 45;      // 45 دقيقة بين كل فتح والتالي
+  // --- إعدادات الوضع المكثّف ---
+  // كل كم ثانية يُعاد حقن سكربت البوب-أندر (يعطي فرصة بوب-أندر جديد) — كثيف.
+  var POPUNDER_REINJECT_SEC = 90;   // كل 90 ثانية يُعاد الحقن → بوب-أندر متكرر
+  // كل كم ثانية يُسمح بفتح Smartlink مرة (قصير جداً = ورا بعض) — كثيف.
+  var SMARTLINK_COOLDOWN_SEC = 20;  // 20 ثانية بين كل فتح Smartlink والتالي
+  // زر المشاهدة: فاصل قصير جداً أيضاً.
+  var WATCH_AD_COOLDOWN_SEC = 20;
+
   var SMARTLINK_KEY = 'cl_sl_last';     // آخر وقت فتح Smartlink
-  var SMARTLINK_IDX_KEY = 'cl_sl_idx';  // فهرس التناوب بين الرابطين
+  var SMARTLINK_IDX_KEY = 'cl_sl_idx';  // فهرس التناوب
+  var WATCH_AD_KEY = 'cl_watch_ad_last';// آخر وقت إعلان زر المشاهدة
 
   // ---- أدوات مساعدة -------------------------------------------------------
   function now() { return Date.now(); }
+  function getLS(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function setLS(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
 
-  function getLS(k) {
-    try { return window.localStorage.getItem(k); } catch (e) { return null; }
-  }
-  function setLS(k, v) {
-    try { window.localStorage.setItem(k, v); } catch (e) {}
-  }
-
-  // هل نحن داخل صفحة المشاهدة؟ (حماية إضافية لو حُمِّل الملف بالخطأ هناك)
   function isWatchPage() {
     return /(^|\/)watch(\/|$)/.test(window.location.pathname);
   }
 
-  // ---- 1) Popunder (Anti-Adblock JS) --------------------------------------
-  // يُحقن السكربت كما تطلبه Adsterra؛ هو يتولّى إطلاق الـ popunder عند
-  // أول تفاعل حقيقي من المستخدم (سلوك الشبكة نفسها، لا تدخّل منّا).
-  function loadPopunder() {
-    if (document.getElementById('cl-popunder')) return;
+  // ---- 1) Popunder (متكرر) ------------------------------------------------
+  // نحقن سكربت Adsterra، ثم نعيد حقنه دورياً بفاصل قصير جداً حتى نحصل على
+  // بوب-أندر متكرر ("كثير") بدل مرة واحدة للزيارة.
+  function injectPopunderOnce() {
     var s = document.createElement('script');
-    s.id = 'cl-popunder';
-    s.src = POPUNDER_SRC;
+    s.className = 'cl-popunder';
+    s.src = POPUNDER_SRC + (POPUNDER_SRC.indexOf('?') === -1 ? '?_=' : '&_=') + now();
     s.async = true;
     s.referrerPolicy = 'no-referrer-when-downgrade';
     (document.body || document.documentElement).appendChild(s);
   }
 
-  // ---- 2) Smartlink بالتناوب مع تحديد التكرار ------------------------------
+  function loadPopunder() {
+    injectPopunderOnce();
+    // إعادة حقن دورية = بوب-أندر متكرر
+    setInterval(injectPopunderOnce, POPUNDER_REINJECT_SEC * 1000);
+    // أيضاً عند كل نقرة (تفاعل حقيقي) نضمن وجود سكربت جاهز لبوب-أندر جديد
+    document.addEventListener('click', function () {
+      // نحقن مرة إضافية عند التفاعل لزيادة الكثافة (بفاصل بسيط عبر المؤقّت أعلاه)
+      injectPopunderOnce();
+    }, { passive: true });
+  }
+
+  // ---- 1ب) Social Bar (دائم) ----------------------------------------------
+  function loadSocialBar() {
+    if (document.getElementById('cl-socialbar')) return;
+    var s = document.createElement('script');
+    s.id = 'cl-socialbar';
+    s.src = SOCIALBAR_SRC;
+    s.async = true;
+    s.referrerPolicy = 'no-referrer-when-downgrade';
+    (document.body || document.documentElement).appendChild(s);
+  }
+
+  // ---- 2) Smartlink (متتالٍ/ورا بعض) --------------------------------------
   function nextSmartlink() {
     var idx = parseInt(getLS(SMARTLINK_IDX_KEY) || '0', 10);
     if (isNaN(idx) || idx < 0) idx = 0;
@@ -69,51 +96,62 @@
   function canOpenSmartlink() {
     var last = parseInt(getLS(SMARTLINK_KEY) || '0', 10);
     if (isNaN(last)) last = 0;
-    return (now() - last) >= SMARTLINK_COOLDOWN_MIN * 60 * 1000;
+    return (now() - last) >= SMARTLINK_COOLDOWN_SEC * 1000;
   }
 
-  // يُفتح فقط استجابةً لنقرة/لمسة حقيقية من المستخدم (يتفادى حظر المتصفح)
-  // وفي مكان "فاضٍ" (ليس على رابط/زر فعلي) حتى لا نعطّل تصفّح المستخدم.
+  // يُفتح استجابةً لأي نقرة حقيقية (حتى على مكان فاضٍ) بفاصل 20 ثانية = كثيف.
   function maybeOpenSmartlink(ev) {
     if (!canOpenSmartlink()) return;
-
     var t = ev.target;
-    // لا نتدخّل لو المستخدم نقر على عنصر تفاعلي حقيقي (رابط/زر/إدخال/فيديو…)
-    var interactive = t && t.closest && t.closest(
-      'a, button, input, select, textarea, label, video, audio, [role="button"], [data-no-ad]'
-    );
-    if (interactive) return;
-
+    // نتجنّب فقط عناصر الإدخال/الفيديو حتى لا نُفسد الاستخدام الأساسي
+    var skip = t && t.closest && t.closest('input, select, textarea, video, audio, [data-no-ad]');
+    if (skip) return;
     setLS(SMARTLINK_KEY, String(now()));
     var url = nextSmartlink();
-    // تبويب جديد في الخلفية قدر الإمكان — يبقى المستخدم في الموقع.
     var w = window.open(url, '_blank', 'noopener');
     if (w) { try { w.blur(); window.focus(); } catch (e) {} }
   }
 
-  // ---- 2ب) أزرار/بانرات Smartlink الصريحة ---------------------------------
-  // النقر على بانر معلَّم بـ data-ad-smartlink = نقرة واعية صريحة من المستخدم،
-  // فتُفتح دائماً بالتناوب (بلا cooldown) — أعلى ربح آمن.
+  // ---- 2ب) بانرات Smartlink الصريحة ---------------------------------------
   function bindExplicitBanners(ev) {
     var t = ev.target;
     var banner = t && t.closest && t.closest('[data-ad-smartlink]');
     if (!banner) return;
     ev.preventDefault();
     var url = nextSmartlink();
-    setLS(SMARTLINK_KEY, String(now())); // نحدّث المؤقّت حتى لا يتكرر تلقائياً بعدها فوراً
+    setLS(SMARTLINK_KEY, String(now()));
     window.open(url, '_blank', 'noopener');
+  }
+
+  // ---- 2ج) إعلان زر المشاهدة ----------------------------------------------
+  function canOpenWatchAd() {
+    var last = parseInt(getLS(WATCH_AD_KEY) || '0', 10);
+    if (isNaN(last)) last = 0;
+    return (now() - last) >= WATCH_AD_COOLDOWN_SEC * 1000;
+  }
+
+  function bindWatchButton(ev) {
+    var t = ev.target;
+    if (!t || !t.closest) return;
+    var watchBtn = t.closest('a[href^="/watch/"], a[href*="/watch/"], .poster-play-btn, [data-watch-ad]');
+    if (!watchBtn) return;
+    if (!canOpenWatchAd()) return;
+    setLS(WATCH_AD_KEY, String(now()));
+    setLS(SMARTLINK_KEY, String(now()));
+    var url = nextSmartlink();
+    var w = window.open(url, '_blank', 'noopener');
+    if (w) { try { w.blur(); window.focus(); } catch (e) {} }
   }
 
   // ---- التهيئة ------------------------------------------------------------
   function init() {
-    if (isWatchPage()) return; // أمان مزدوج: لا إعلانات في صفحة المشاهدة
+    if (isWatchPage()) return; // لا إعلانات في صفحة المشاهدة
 
     loadPopunder();
+    loadSocialBar();
 
-    // نقرات البانرات الصريحة أولاً (نقرة واعية = تُفتح دائماً)
     document.addEventListener('click', bindExplicitBanners, false);
-
-    // ثم التفاعل في مكان فاضٍ لإطلاق Smartlink مرة كل فترة (مع cooldown)
+    document.addEventListener('click', bindWatchButton, { passive: true });
     document.addEventListener('click', maybeOpenSmartlink, { passive: true });
   }
 
