@@ -13,7 +13,7 @@ interface Props {
   variant?: 'inline' | 'wide';
   label?: string;
 }
-const { variant = 'inline', label = 'عروض ومكافآت حصرية' } = Astro.props;
+const { variant = 'inline', label = 'محتوى وعروض من شركائنا المعلنين' } = Astro.props;
 ---
 <a
   class={`ad-banner ad-banner--${variant}`}
@@ -26,7 +26,7 @@ const { variant = 'inline', label = 'عروض ومكافآت حصرية' } = Ast
   <span class="ad-banner__tag">إعلان</span>
   <span class="ad-banner__body">
     <span class="ad-banner__title">{label}</span>
-    <span class="ad-banner__sub">اضغط للعرض — قد يفتح في تبويب جديد</span>
+    <span class="ad-banner__sub">محتوى إعلاني — يفتح في تبويب جديد</span>
   </span>
   <span class="ad-banner__cta">عرض الآن ›</span>
 </a>

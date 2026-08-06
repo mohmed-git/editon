@@ -1,42 +1,65 @@
 ---
 // ============================================================================
-// صفحة العمل الفردي — SSR (prerender = false)
+// صفحة العمل الفردي — Static (prerender = true)
 // ----------------------------------------------------------------------------
-// كل الأعمال (10,439) تُخدَّم عبر SSR: نجلب shard التفاصيل + shard الحلقات عبر
-// HTTP (أصل واحد لكل نوع) فلا يتضخّم الـ Worker. الأعمال المُثراة من TMDB تعرض
-// بيانات غنية، وغير المُثراة تعرض بياناتها الأساسية (CSV) مع سيرفرات المشاهدة.
+// كل الأعمال (11,328) تُبنى صفحات ثابتة وقت البناء لتقليل استهلاك الـ Worker.
+// عدد الملفات (~11.3 ألف) تحت حد Cloudflare (20,000). البيانات تُقرأ من القرص
+// وقت البناء عبر data-static (fs) دون أي طلب SSR وقت الزيارة.
+// التوجيهات (redirects) تُبنى صفحاتها الثابتة أيضاً كـ meta-refresh + canonical.
 // ============================================================================
-export const prerender = false;
+export const prerender = true;
 
 import Base from '../../layouts/Base.astro';
 import Nav from '../../components/Nav.astro';
 import Footer from '../../components/Footer.astro';
 import PosterCard from '../../components/PosterCard.astro';
 import Icon from '../../components/Icon.astro';
-import { getDetailSSR, getEpisodes, similarSSR } from '../../lib/data';
+import { allTitleIds, getDetail, getEpisodesStatic, similarTitles } from '../../lib/data-static';
 import { titlePageTag, titleDescription, titleSchema, displayName } from '../../lib/seo';
 import redirects from '../../data/redirects.json';
 
-const { id } = Astro.params;
-const origin = Astro.url;
-// إعادة توجيه الأعمال القديمة/المدموجة إلى العمل القانوني (301) حفاظاً على الروابط القديمة
-const target = (redirects as Record<string, string>)[id!];
-if (target && target !== id) {
-  return Astro.redirect(`/title/${target}`, 301);
+export function getStaticPaths() {
+  const redir = redirects as Record<string, string>;
+  const paths = allTitleIds().map((id) => ({ params: { id } }));
+  // نبني أيضاً صفحات ثابتة للروابط القديمة/المدموجة (تحوّل للعمل القانوني)
+  for (const from in redir) {
+    if (from !== redir[from]) paths.push({ params: { id: from } });
+  }
+  return paths;
 }
-const T = await getDetailSSR(id!, origin);
+
+const { id } = Astro.params;
+const redir = redirects as Record<string, string>;
+
+// إعادة توجيه الأعمال القديمة/المدموجة إلى العمل القانوني عبر صفحة ثابتة صغيرة
+// (meta-refresh + canonical) — تعمل بلا Worker وتحافظ على SEO.
+const target = redir[id!];
+if (target && target !== id) {
+  const to = `/title/${target}`;
+  return new Response(
+    `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">` +
+    `<title>تحويل…</title><link rel="canonical" href="https://cima-liveapp.site${to}">` +
+    `<meta http-equiv="refresh" content="0; url=${to}">` +
+    `<meta name="robots" content="noindex, follow"></head>` +
+    `<body>يتم التحويل… <a href="${to}">اضغط هنا إن لم يتم التحويل تلقائياً</a>` +
+    `<script>location.replace(${JSON.stringify(to)});</script></body></html>`,
+    { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+  );
+}
+
+const T = getDetail(id!);
 if (!T) {
   return Astro.redirect('/404', 404);
 }
 const isSeries = T.type !== 'movie';
-const similar = await similarSSR(T, origin, 6);
+const similar = similarTitles(T.id, 6);
 const typeWord = T.type === 'movie' ? 'فيلم' : T.type === 'anime' ? 'أنمي' : 'مسلسل';
 
 // الموسم الأول (لعرض قائمة الحلقات على صفحة العمل)
 let firstSeasonNum: number | null = null;
 let episodes: any[] = [];
 if (isSeries) {
-  const eps = await getEpisodes(id!, origin);
+  const eps = getEpisodesStatic(id!);
   if (eps) {
     const keys = Object.keys(eps).map(Number).sort((a, b) => a - b);
     if (keys.length) {
@@ -45,7 +68,11 @@ if (isSeries) {
     }
   }
 }
-const watchHref = isSeries ? `/watch/${T.id}` : `/watch/${T.id}/0/0`;
+// زر المشاهدة يذهب مباشرةً لأول حلقة/عرض (بدل صفحة توجيه SSR)
+const firstEpNum = episodes.length > 0 ? episodes[0].num : 1;
+const watchHref = isSeries
+  ? `/watch/${T.id}/${firstSeasonNum ?? 1}/${firstEpNum}`
+  : `/watch/${T.id}/0/0`;
 const dispName = displayName(T);
 
 // مدة العرض بصيغة عربية مقروءة (ساعات ودقائق)

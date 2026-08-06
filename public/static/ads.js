@@ -3,12 +3,12 @@
  * ----------------------------------------------------------------------------
  * الهدف: أقصى كثافة إعلانية ممكنة مع تقليل خطر حظر حساب Adsterra قدر الإمكان.
  *
- * ما يفعله هذا الملف:
- *  1) Popunder (Adsterra) — يُحقن السكربت، ويُعاد تشغيله بشكل متكرر بفاصل قصير
- *     جداً (POPUNDER_REINJECT_SEC) بدل مرة واحدة للزيارة → بوب-أندر كثير.
+ * ما يفعله هذا الملف (كثافة مُضاعَفة بعد تأكيد Adsterra عدم وجود مسؤولية):
+ *  1) Popunder (Adsterra) — يُحقن السكربت، ويُعاد تشغيله بشكل متكرر جداً بفاصل
+ *     25 ثانية (POPUNDER_REINJECT_SEC) + عند كل نقرة + عند التمرير → بوب-أندر كثير جداً.
  *  2) Social Bar (Adsterra) — شريط إعلاني تفاعلي دائم في كل الصفحات (عدا المشاهدة).
- *  3) Smartlink — يُفتح مع كل نقرة تقريباً بفاصل ثوانٍ قصير جداً (متتالٍ/ورا بعض)
- *     بدل فاصل 45 دقيقة.
+ *  3) Smartlink — يُفتح دفعة (SMARTLINK_BURST) مع كل نقرة تقريباً بفاصل 6 ثوانٍ
+ *     (متتالٍ/ورا بعض) بدل مرة واحدة كل فترة طويلة → كثافة أعلى بكثير.
  *  4) استثناء صفحة المشاهدة بالكامل (يُمرَّر ads=false من اللايوت فلا يُحمَّل أصلاً).
  *
  * ملاحظة أمان مهمّة: لتقليل خطر الحظر الفوري + تجاوز مانع النوافذ في المتصفح،
@@ -29,13 +29,17 @@
     'https://jabturfembitter.com/q4mwyeieh?key=ad2a2d5654b356e113da3fb8e604c7b1'
   ];
 
-  // --- إعدادات الوضع المكثّف ---
-  // كل كم ثانية يُعاد حقن سكربت البوب-أندر (يعطي فرصة بوب-أندر جديد) — كثيف.
-  var POPUNDER_REINJECT_SEC = 90;   // كل 90 ثانية يُعاد الحقن → بوب-أندر متكرر
-  // كل كم ثانية يُسمح بفتح Smartlink مرة (قصير جداً = ورا بعض) — كثيف.
-  var SMARTLINK_COOLDOWN_SEC = 20;  // 20 ثانية بين كل فتح Smartlink والتالي
+  // --- إعدادات الوضع المكثّف (تمّت زيادة الكثافة أكثر) ---
+  // كل كم ثانية يُعاد حقن سكربت البوب-أندر (يعطي فرصة بوب-أندر جديد) — كثيف جداً.
+  var POPUNDER_REINJECT_SEC = 25;   // كل 25 ثانية يُعاد الحقن → بوب-أندر متكرر بكثرة
+  // كل كم ثانية يُسمح بفتح Smartlink مرة (قصير جداً = ورا بعض) — كثيف جداً.
+  var SMARTLINK_COOLDOWN_SEC = 6;   // 6 ثوانٍ بين كل فتح Smartlink والتالي
   // زر المشاهدة: فاصل قصير جداً أيضاً.
-  var WATCH_AD_COOLDOWN_SEC = 20;
+  var WATCH_AD_COOLDOWN_SEC = 6;
+  // كم Smartlink يُفتح متتالياً في كل نقرة (متتالية بفاصل ثوانٍ قصيرة = كثافة أعلى).
+  var SMARTLINK_BURST = 2;
+  // فاصل قصير (مللي ثانية) بين نوافذ نفس الدفعة لتجنّب السلوك اللحظي المُصنَّف احتيالاً.
+  var SMARTLINK_BURST_GAP_MS = 1200;
 
   var SMARTLINK_KEY = 'cl_sl_last';     // آخر وقت فتح Smartlink
   var SMARTLINK_IDX_KEY = 'cl_sl_idx';  // فهرس التناوب
@@ -62,13 +66,21 @@
     (document.body || document.documentElement).appendChild(s);
   }
 
+  var _lastScrollInject = 0;
   function loadPopunder() {
     injectPopunderOnce();
-    // إعادة حقن دورية = بوب-أندر متكرر
+    // إعادة حقن دورية = بوب-أندر متكرر بكثرة
     setInterval(injectPopunderOnce, POPUNDER_REINJECT_SEC * 1000);
     // أيضاً عند كل نقرة (تفاعل حقيقي) نضمن وجود سكربت جاهز لبوب-أندر جديد
     document.addEventListener('click', function () {
       // نحقن مرة إضافية عند التفاعل لزيادة الكثافة (بفاصل بسيط عبر المؤقّت أعلاه)
+      injectPopunderOnce();
+    }, { passive: true });
+    // عند التمرير (throttle كل 8 ثوانٍ) نحقن أيضاً لزيادة الكثافة مع الحفاظ على الأداء
+    document.addEventListener('scroll', function () {
+      var t = now();
+      if (t - _lastScrollInject < 8000) return;
+      _lastScrollInject = t;
       injectPopunderOnce();
     }, { passive: true });
   }
@@ -99,17 +111,30 @@
     return (now() - last) >= SMARTLINK_COOLDOWN_SEC * 1000;
   }
 
-  // يُفتح استجابةً لأي نقرة حقيقية (حتى على مكان فاضٍ) بفاصل 20 ثانية = كثيف.
+  // يفتح Smartlink واحداً في نافذة جديدة (يُعيد التركيز للصفحة الأصلية).
+  function openOneSmartlink() {
+    var url = nextSmartlink();
+    var w = window.open(url, '_blank', 'noopener');
+    if (w) { try { w.blur(); window.focus(); } catch (e) {} }
+  }
+
+  // يفتح دفعة (SMARTLINK_BURST) من Smartlinks متتالية بفاصل ثوانٍ قصيرة (شبه آمن).
+  function openSmartlinkBurst() {
+    setLS(SMARTLINK_KEY, String(now()));
+    openOneSmartlink();
+    for (var i = 1; i < SMARTLINK_BURST; i++) {
+      setTimeout(openOneSmartlink, i * SMARTLINK_BURST_GAP_MS);
+    }
+  }
+
+  // يُفتح استجابةً لأي نقرة حقيقية (حتى على مكان فاضٍ) بفاصل قصير جداً = كثيف جداً.
   function maybeOpenSmartlink(ev) {
     if (!canOpenSmartlink()) return;
     var t = ev.target;
     // نتجنّب فقط عناصر الإدخال/الفيديو حتى لا نُفسد الاستخدام الأساسي
     var skip = t && t.closest && t.closest('input, select, textarea, video, audio, [data-no-ad]');
     if (skip) return;
-    setLS(SMARTLINK_KEY, String(now()));
-    var url = nextSmartlink();
-    var w = window.open(url, '_blank', 'noopener');
-    if (w) { try { w.blur(); window.focus(); } catch (e) {} }
+    openSmartlinkBurst();
   }
 
   // ---- 2ب) بانرات Smartlink الصريحة ---------------------------------------

@@ -62,21 +62,59 @@ export function getDetail(id: string): TitleDetail | undefined {
 }
 
 // -------- أعمال مشابهة (نفس النوع + تقاطع تصنيفات) — build-time --------------
+// فهرس مقلوب (النوع → التصنيف → مرشّحون) يُبنى مرة واحدة لكل عملية بناء، بدل
+// مسح كل الأعمال (12k+) في كل صفحة. هذا يقلّص زمن البناء بشكل كبير جداً:
+// لكل صفحة نفحص فقط المرشّحين الذين يشاركون تصنيفاً واحداً على الأقل.
+type SimCand = { c: TitleCard; genres: Set<string> };
+let _simIndex: Map<string, Map<string, SimCand[]>> | null = null;
+let _simByType: Map<string, SimCand[]> | null = null;
+
+function buildSimIndex() {
+  _simIndex = new Map();
+  _simByType = new Map();
+  for (const key in detailsFullMap) {
+    if (!detailsFullMap[key]?.tmdbId) continue; // مُثرى فقط (له صفحة ثابتة)
+    const c = titles[key];
+    if (!c) continue;
+    const genres = new Set(c.genres || []);
+    const cand: SimCand = { c, genres };
+    if (!_simByType.has(c.type)) _simByType.set(c.type, []);
+    _simByType.get(c.type)!.push(cand);
+    let byGenre = _simIndex.get(c.type);
+    if (!byGenre) { byGenre = new Map(); _simIndex.set(c.type, byGenre); }
+    for (const g of genres) {
+      let arr = byGenre.get(g);
+      if (!arr) { arr = []; byGenre.set(g, arr); }
+      arr.push(cand);
+    }
+  }
+}
+
 export function similarTitles(id: string, limit = 6): TitleCard[] {
   const base = titles[id];
   if (!base) return [];
-  const baseGenres = new Set(base.genres || []);
-  const scored: { c: TitleCard; s: number }[] = [];
-  // نقصر المقارنة على الأعمال المُثراة (لها صفحة ثابتة) لتفادي روابط ميتة
-  for (const key in detailsFullMap) {
-    if (key === id) continue;
-    if (!detailsFullMap[key]?.tmdbId) continue;
-    const c = titles[key];
-    if (!c || c.type !== base.type) continue;
-    let overlap = 0;
-    for (const g of c.genres || []) if (baseGenres.has(g)) overlap++;
-    if (overlap === 0 && baseGenres.size > 0) continue;
-    scored.push({ c, s: overlap * 10 + (c.rating || 0) });
+  if (!_simIndex) buildSimIndex();
+  const baseGenres = base.genres || [];
+  const byGenre = _simIndex!.get(base.type);
+  // نجمع المرشّحين المشاركين في تصنيف واحد على الأقل مع حساب التقاطع
+  const seen = new Map<string, { c: TitleCard; s: number }>();
+  if (byGenre && baseGenres.length) {
+    for (const g of baseGenres) {
+      const arr = byGenre.get(g);
+      if (!arr) continue;
+      for (const cand of arr) {
+        if (cand.c.id === id) continue;
+        let e = seen.get(cand.c.id);
+        if (!e) { e = { c: cand.c, s: (cand.c.rating || 0) }; seen.set(cand.c.id, e); }
+        e.s += 10; // زيادة لكل تصنيف متقاطع
+      }
+    }
+  }
+  let scored = [...seen.values()];
+  // fallback: لو لا تصنيفات/لا تقاطع، نأخذ أعلى تقييماً من نفس النوع
+  if (!scored.length) {
+    const all = _simByType!.get(base.type) || [];
+    scored = all.filter((x) => x.c.id !== id).map((x) => ({ c: x.c, s: x.c.rating || 0 }));
   }
   scored.sort((a, b) => b.s - a.s);
   return scored.slice(0, limit).map((x) => x.c);
