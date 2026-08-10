@@ -1,30 +1,34 @@
-حزمة الدفعة 24 — سينما لايف (دمج سيرفرات cimalight + إنشاء أعمال جديدة)
-=========================================================================
+CinemaPlus - fix the "all.json exceeds 100MB" push error
+=========================================================
 
-ما تم:
-1) دمج سيرفرات جديدة في الأعمال الموجودة:
-   - أفلام (result.csv):   1381 عمل مطابق، +10157 سيرفر
-   - مسلسلات (series_with_servers_all): 4328 عمل مطابق، +24471 سيرفر
-   - السيرفرات تُضاف "بين" سيرفرات العمل الموجود مع إزالة التكرار (dedup)
-     وحد أقصى 20 سيرفر/حلقة.
+WHAT HAPPENED
+  all.json grew to 150MB after the merge. GitHub rejects any file > 100MB,
+  and an old commit in your local history still carried the big file.
 
-2) إنشاء 1006 عمل جديد غير موجود:
-   - العمل الأجنبي: بحث + إثراء TMDB (قصة عربية/صورة/خلفية/تقييم/طاقم/تصنيفات).
-   - العمل العربي: يُنشأ بدون TMDB (كما طُلب).
-   - الإجمالي: 11328 → 12334 عمل.
+THE FIX (do these in order)
 
-الملفات في هذه الحزمة (ضعها في نفس مسارات المشروع):
-  titles.json          → src/data/titles.json
-  details.json         → src/data/details.json
-  home.json            → src/data/home.json
-  categories.json      → src/data/categories.json
-  search-index.json    → src/data/search-index.json
-  sitemap-index.json   → src/data/sitemap-index.json
-  stats.json           → src/data/stats.json
-  episodes/shard-*.json→ public/data/episodes/
-  ads.js               → public/static/ads.js  (كثافة إعلانات أعلى)
-  scripts/*.mjs        → scripts/   (سكربتات الدمج والإنشاء)
-  reports/*            → تقارير الأعمال الجديدة (مرجعية)
+  1) Extract cinemaplus-fix-v2.tar.gz INTO your project folder
+     (C:\Users\mohme\OneDrive\Desktop\web\cinemanaplus-have't),
+     overwriting existing files. It adds:
+        - src/data/generated/all.json.part-000..003  (<45MB each)
+        - src/data/generated/all.json.parts.json
+        - scripts/join-all-json.mjs  (rebuilds all.json at build time)
+        - scripts/split-all-json.mjs
+        - updated package.json + .gitignore + the merged catalogue data
 
-ملاحظة: بعد النسخ شغّل `npm run build` لإعادة توليد الموقع الثابت
-(عدد الملفات ~13,603 < حد Cloudflare 20,000).
+  2) Double-click  FIX_AND_PUSH.bat   (run it inside the project folder).
+     This rewinds to the last good commit, drops the big all.json, commits
+     the <45MB parts, and pushes.
+
+  3) If the push STILL fails with an all.json size error, double-click
+     NUCLEAR_FIX.bat  - it strips all.json from the ENTIRE history and
+     force-pushes a clean history. (Safe: your files on disk are untouched.)
+
+  4) verify_no_bigfile.bat  - optional, lists any >99MB file left in history.
+     If it prints nothing, you're clean.
+
+HOW IT WORKS AFTER THIS
+  all.json is no longer stored in git. On every build (local or Cloudflare),
+  "npm run build" first runs join-all-json.mjs which reassembles all.json
+  from the committed parts - byte-identical - then builds normally.
+  Nothing else in your workflow changes.

@@ -1,7 +1,0 @@
----
-import { ICON_PATHS } from '../lib/icons';
-interface Props { name: string; class?: string }
-const { name, class: cls = '' } = Astro.props;
-const path = ICON_PATHS[name] || '<circle cx="12" cy="12" r="8"/>';
----
-<svg class={cls} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" set:html={path}></svg>

@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450" width="300" height="450">
-  <rect width="300" height="450" fill="#122038"/>
-  <circle cx="150" cy="200" r="52" fill="none" stroke="#504a37" stroke-width="5"/>
-  <path d="M132 172 L132 228 L178 200 Z" fill="#E8B547"/>
-  <text x="150" y="300" text-anchor="middle" fill="#5a6b85" font-family="sans-serif" font-size="18" font-weight="700">سينما لايف</text>
-  <text x="150" y="326" text-anchor="middle" fill="#3d4a5f" font-family="sans-serif" font-size="13">الصورة قريباً</text>
-</svg>
